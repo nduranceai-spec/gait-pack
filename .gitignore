@@ -1,0 +1,9 @@
+.venv/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+models/*.task
+data/sessions/*.csv
+frontend/node_modules/
+frontend/dist/
