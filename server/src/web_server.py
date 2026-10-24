@@ -84,6 +84,7 @@ browser_sessions_lock = threading.RLock()
 # deployment layout that Vercel uses after bundling.
 _model_candidates = [
     ROOT / "models" / "pose_landmarker_lite.task",
+    ROOT.parent / "models" / "pose_landmarker_lite.task",
     Path("/var/task/models/pose_landmarker_lite.task"),
     Path("/tmp/models/pose_landmarker_lite.task"),
 ]
@@ -474,7 +475,7 @@ class CameraService:
                     candidate.release()
                 if camera is None:
                     raise RuntimeError("No readable external USB camera found. Connect it, close other camera apps, and retry.")
-                models = ROOT / "models"
+                models = (ROOT / "models") if (ROOT / "models").is_dir() else (ROOT.parent / "models")
                 for filename in ("pose_landmarker_lite.task", "hand_landmarker.task"):
                     if not (models / filename).is_file():
                         raise RuntimeError(f"Missing {filename}. Run scripts/setup.sh first.")
@@ -585,7 +586,7 @@ class Handler(BaseHTTPRequestHandler):
                     and recorder.state in (RecordingState.RECORDING, RecordingState.PAUSED)
                     else None
                 )
-            directory = ROOT / "data/sessions"
+            directory = (ROOT / "data/sessions") if (ROOT / "data/sessions").is_dir() else (ROOT.parent / "data/sessions")
             if path == "/api/sessions":
                 payload = browser_session_summaries() + list_sessions(directory, active_file)
                 self._send(200, json.dumps(payload).encode())
