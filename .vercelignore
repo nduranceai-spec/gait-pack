@@ -9,5 +9,6 @@ node_modules/
 frontend/node_modules/
 __pycache__/
 src/__pycache__/
+api/__pycache__/
 *.pyc
 *.pyo
