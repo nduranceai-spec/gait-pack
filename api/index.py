@@ -15,6 +15,9 @@ from pathlib import Path
 # Make sure the project root is on sys.path so ``src.*`` imports work whether
 # Vercel bundles us flat (/var/task) or keeps the directory structure intact.
 ROOT = Path(__file__).resolve().parent.parent
+SERVER_DIR = ROOT / "server"
+if str(SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVER_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 

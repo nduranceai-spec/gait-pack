@@ -28,4 +28,4 @@ if [[ ! -f models/hand_landmarker.task ]]; then
 fi
 
 echo "Setup complete."
-echo "Run: .venv/bin/python -m src.check_setup"
+echo "Run: PYTHONPATH=\"${PROJECT_DIR}/server\" .venv/bin/python -m src.check_setup"
