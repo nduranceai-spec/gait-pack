@@ -36,7 +36,7 @@ class BrowserPoseProcessor:
     def _detector(self):
         if self.detector is None:
             if not self.model_path.is_file():
-                raise RuntimeError(f"Missing {self.model_path.name}. Run scripts/setup.sh first.")
+                raise RuntimeError(f"Missing {self.model_path.name}. Run scripts/setup.py first.")
             options = mp.tasks.vision.PoseLandmarkerOptions(
                 base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
                 running_mode=mp.tasks.vision.RunningMode.IMAGE,

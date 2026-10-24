@@ -17,9 +17,10 @@ from src.cameras import find_cameras, open_camera, print_cameras, select_camera
 from src.recorder import GaitRecorder, RecordingState
 
 
-FAST_POSE_MODEL_PATH = Path("models/pose_landmarker_lite.task")
-ACCURATE_POSE_MODEL_PATH = Path("models/pose_landmarker_full.task")
-HAND_MODEL_PATH = Path("models/hand_landmarker.task")
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+FAST_POSE_MODEL_PATH = SERVER_ROOT / "models" / "pose_landmarker_lite.task"
+ACCURATE_POSE_MODEL_PATH = SERVER_ROOT / "models" / "pose_landmarker_full.task"
+HAND_MODEL_PATH = SERVER_ROOT / "models" / "hand_landmarker.task"
 WINDOW_NAME = "G3-V2 Gait Data Recorder"
 FIRST_BODY_LANDMARK = 11
 TARGET_CAMERA_FPS = 60
@@ -229,7 +230,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--camera",
         default="usb",
-        help="usb (default), built-in, a number such as 2, or /dev/video2",
+        help="usb (default), built-in, a numeric device index such as 0, or Linux /dev/video2",
     )
     parser.add_argument(
         "--list-cameras",
@@ -255,7 +256,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/sessions"),
+        default=SERVER_ROOT / "data" / "sessions",
         help="folder for recorded CSV files",
     )
     parser.add_argument(
@@ -345,7 +346,7 @@ def main() -> int:
         print("Missing model files:")
         for path in missing_models:
             print(f"  {path}")
-        print("Run ./scripts/setup.sh first.")
+        print("Run the cross-platform setup command from README.md first.")
         return 1
 
     pose_base_options = mp.tasks.BaseOptions(

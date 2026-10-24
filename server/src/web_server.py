@@ -31,7 +31,7 @@ HARDWARE_MODE: bool = os.environ.get("GAIT_HARDWARE_MODE", "1").strip() not in {
 
 if HARDWARE_MODE:
     try:
-        from src.cameras import BUILT_IN_HINTS, find_cameras, open_camera
+        from src.cameras import BUILT_IN_HINTS, find_cameras, open_camera, select_camera
         from src.pose_camera import InferenceWorker, LandmarkSmoother, draw_hands, draw_pose
         from src.recorder import GaitRecorder, RecordingState
     except Exception:  # pragma: no cover
@@ -42,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # On Vercel the only writable directory is /tmp.  Fall back to it when the
 # configured path is the old hard-coded local one or doesn't exist yet.
-_default_data = "/tmp/gait-data" if os.environ.get("VERCEL") else "/home/aravindhan/Projects/data"
+_default_data = "/tmp/gait-data" if os.environ.get("VERCEL") else str(ROOT / "data")
 DATA_ROOT = Path(os.environ.get("GAIT_DATA_DIR", _default_data)).expanduser()
 
 MAX_FRAME_BYTES = 2_000_000
@@ -325,7 +325,7 @@ def is_origin_allowed(origin: str | None) -> bool:
 
 
 def listed_cameras() -> list[dict]:
-    """Return Linux video-capture nodes for diagnostics, never browser selection.
+    """Return locally available video-capture devices for diagnostics.
 
     A BRIO exposes auxiliary metadata and greyscale nodes. ``find_cameras`` has
     already filtered those, and the node path is intentionally retained so
@@ -432,7 +432,7 @@ class CameraService:
     def _record(self):
         if self.recorder and self.recorder.state is RecordingState.RECORDING:
             return
-        self.recorder = GaitRecorder("web-gait-test", "walking", ROOT / "data/sessions")
+        self.recorder = GaitRecorder("web-gait-test", "walking", DATA_ROOT / "sessions")
         self.recorder.start()
         self.deadline = time.monotonic() + 60
 
@@ -456,11 +456,19 @@ class CameraService:
         camera = None
         try:
             with ExitStack() as resources:
+                devices = find_cameras()
+                requested_camera = os.environ.get("GAIT_CAMERA", "usb").strip()
                 candidates = [
-                    device for device in find_cameras()
+                    device for device in devices
                     if device.connection == "usb"
                     and not any(hint in device.name.lower() for hint in BUILT_IN_HINTS)
                 ]
+                if not candidates and requested_camera == "usb" and len(devices) == 1:
+                    if devices[0].connection == "unknown":
+                        candidates = devices
+                elif requested_camera != "usb":
+                    selected = select_camera(requested_camera, devices)
+                    candidates = [selected] if selected else []
                 for device in candidates:
                     if self.cancel.is_set():
                         return
@@ -474,11 +482,14 @@ class CameraService:
                             break
                     candidate.release()
                 if camera is None:
-                    raise RuntimeError("No readable external USB camera found. Connect it, close other camera apps, and retry.")
+                    raise RuntimeError(
+                        "No readable camera matched the selection. Connect a camera, close other "
+                        "camera apps, or set GAIT_CAMERA to a listed device number (for example 0)."
+                    )
                 models = (ROOT / "models") if (ROOT / "models").is_dir() else (ROOT.parent / "models")
                 for filename in ("pose_landmarker_lite.task", "hand_landmarker.task"):
                     if not (models / filename).is_file():
-                        raise RuntimeError(f"Missing {filename}. Run scripts/setup.sh first.")
+                        raise RuntimeError(f"Missing {filename}. Run scripts/setup.py first.")
                 pose = resources.enter_context(mp.tasks.vision.PoseLandmarker.create_from_options(
                     mp.tasks.vision.PoseLandmarkerOptions(
                         base_options=mp.tasks.BaseOptions(model_asset_path=str(models / "pose_landmarker_lite.task")),
@@ -586,7 +597,7 @@ class Handler(BaseHTTPRequestHandler):
                     and recorder.state in (RecordingState.RECORDING, RecordingState.PAUSED)
                     else None
                 )
-            directory = (ROOT / "data/sessions") if (ROOT / "data/sessions").is_dir() else (ROOT.parent / "data/sessions")
+            directory = DATA_ROOT / "sessions"
             if path == "/api/sessions":
                 payload = browser_session_summaries() + list_sessions(directory, active_file)
                 self._send(200, json.dumps(payload).encode())
