@@ -24,4 +24,9 @@ os.environ.setdefault("GAIT_DATA_DIR", "/tmp/gait-data")
 
 from src.web_server import Handler  # noqa: E402  (import after sys.path fix)
 
-__all__ = ["Handler"]
+# Vercel serverless Python runtime looks for lowercase `handler`
+handler = Handler
+app = Handler
+
+__all__ = ["handler", "Handler", "app"]
+
