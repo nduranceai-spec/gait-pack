@@ -5,7 +5,7 @@
     ChartNoAxesCombined,
     LayoutDashboard,
     History,
-    Footprints,
+    Sparkles,
   } from '@lucide/svelte';
   import type { PageId } from '../lib/types';
 
@@ -15,17 +15,17 @@
   }: { active: PageId; onNavigate: (page: PageId) => void } = $props();
 
   const items = [
-    { id: 'dashboard' as const, label: 'Overview', icon: LayoutDashboard },
-    { id: 'studio' as const, label: 'Test studio', icon: Activity },
-    { id: 'report' as const, label: 'Report', icon: ChartNoAxesCombined },
-    { id: 'history' as const, label: 'Recordings', icon: History },
-    { id: 'coach' as const, label: 'Guidance', icon: BrainCircuit },
+    { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'studio' as const, label: 'Test Studio', icon: Activity },
+    { id: 'report' as const, label: 'Gait Report', icon: ChartNoAxesCombined },
+    { id: 'history' as const, label: 'Session History', icon: History },
+    { id: 'coach' as const, label: 'Help & Guidance', icon: BrainCircuit },
   ];
 </script>
 
 <aside class="sidebar" aria-label="Main navigation">
   <div class="brand-lockup">
-    <div class="brand-mark"><Footprints size={30} strokeWidth={1.6} /></div>
+    <div class="brand-mark"><Sparkles size={20} strokeWidth={1.8} /></div>
     <div>
       <strong>AURA</strong>
       <span>MOTION</span>
@@ -39,7 +39,6 @@
         onclick={() => onNavigate(item.id)}
         aria-current={active === item.id ? 'page' : undefined}
         aria-label={item.label}
-        title={item.label}
       >
         <item.icon size={20} strokeWidth={1.7} />
         <span>{item.label}</span>

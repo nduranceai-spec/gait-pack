@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowRight, ArrowUpRight, Camera, Footprints, ShieldCheck } from '@lucide/svelte';
+  import { ArrowRight, ArrowUpRight, Camera, Clock3, Footprints, ShieldCheck } from '@lucide/svelte';
   import GlassCard from '../components/GlassCard.svelte';
   import MotionFigure from '../components/MotionFigure.svelte';
   import SessionList from '../components/SessionList.svelte';
@@ -14,9 +14,9 @@
 <div class="page-stack">
   <section class="editorial-hero">
     <div class="editorial-copy">
-      <span class="edition-label">Your movement workspace</span>
-      <h2>Capture movement.<br />Keep every detail.</h2>
-      <p>Connect a camera, record a guided gait session, and keep your landmark data on this device.</p>
+      <span class="edition-label"><span></span> AURA / MOVEMENT INTELLIGENCE</span>
+      <h2>Every step.<br /><em>A clearer picture.</em></h2>
+      <p>A considered space to capture your movement, explore your recordings, and understand what comes next.</p>
       <div class="hero-actions">
         <button class="primary-button" onclick={onStart}>Begin a gait test <ArrowRight size={18} /></button>
         <button class="text-button" onclick={onHistory}>Explore recordings <ArrowUpRight size={17} /></button>
@@ -24,18 +24,19 @@
       <div class="hero-footnote"><ShieldCheck size={14} /> Local capture. Your pace. Your data.</div>
     </div>
     <GlassCard class="body-showcase" elevated>
-      <div class="showcase-top"><span>Capture model</span><span>Body + hands</span></div>
+      <div class="showcase-top"><span>THE ART OF MOVEMENT</span><span>01 / CAPTURE</span></div>
       <div class="body-orbit orbit-outer"></div><div class="body-orbit orbit-inner"></div>
       <div class="body-illustration"><MotionFigure /></div>
-      <div class="annotation annotation-lower"><Footprints size={16} /><div><small>Body landmarks</small><strong>22 recording points</strong></div></div>
-      <div class="showcase-caption"><span>Illustration · not live data</span><span>MediaPipe</span></div>
+      <div class="annotation annotation-upper"><span class="annotation-dot"></span><div><small>CAPTURE MODEL</small><strong>Body + hands</strong></div></div>
+      <div class="annotation annotation-lower"><Footprints size={16} /><div><small>BODY LANDMARKS</small><strong>22 recording points</strong></div></div>
+      <div class="showcase-caption"><span>Illustrative motion study</span><span>USB / MEDIAPIPE</span></div>
     </GlassCard>
   </section>
 
-  <div class="spec-grid" aria-label="Recording overview">
-    <div class="spec-card"><div class="spec-label">Saved recordings</div><strong>{loading || error ? '—' : sessions.filter(session => session.status === 'saved').length}<span>sessions</span></strong><p>{error ? 'Library unavailable' : 'From your local recording library'}</p></div>
-    <div class="spec-card"><div class="spec-label">Capture window</div><strong>60<span>seconds</span></strong><p>Save earlier whenever you need</p></div>
-    <div class="spec-card"><div class="spec-label">Private storage</div><strong>Local<span>CSV</span></strong><p>Coordinates only. No saved video.</p></div>
+  <div class="spec-grid">
+    <GlassCard class="spec-card"><div class="spec-label"><Clock3 size={17} /><span>One focused session</span></div><strong>60<span>sec</span></strong><p>A guided capture window</p></GlassCard>
+    <GlassCard class="spec-card"><div class="spec-label"><Footprints size={17} /><span>Body tracking</span></div><strong>22<span>points</span></strong><p>Body landmarks saved by default</p></GlassCard>
+    <GlassCard class="spec-card"><div class="spec-label"><ShieldCheck size={17} /><span>Storage by design</span></div><strong>Local<span>CSV</span></strong><p>Recorded coordinates, on this device</p></GlassCard>
   </div>
 
   <section class="journey-section">

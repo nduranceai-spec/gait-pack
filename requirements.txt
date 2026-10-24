@@ -1,5 +1,2 @@
 mediapipe==0.10.35
-# opencv-headless is required on Vercel (no GUI/X11 libraries available).
-# Swap the line below to opencv-contrib-python for local hardware camera use.
-opencv-contrib-python-headless==4.11.0.86
-numpy>=1.26,<2.0
+opencv-contrib-python==4.11.0.86
