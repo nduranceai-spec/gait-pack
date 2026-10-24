@@ -7,7 +7,7 @@
     const context = canvas.getContext('2d');
     if (!context) return;
     const drawing = context;
-    const accent = getComputedStyle(canvas).getPropertyValue('--text').trim();
+    const accent = getComputedStyle(canvas).getPropertyValue('--accent').trim();
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let frameId = 0;
     let start = performance.now();
@@ -38,7 +38,7 @@
       drawing.lineWidth = 3;
       drawing.strokeStyle = accent;
       drawing.shadowColor = accent;
-      drawing.shadowBlur = 12;
+      drawing.shadowBlur = 0;
       for (const [from, to] of connections) {
         drawing.beginPath();
         drawing.moveTo(points[from][0], points[from][1]);

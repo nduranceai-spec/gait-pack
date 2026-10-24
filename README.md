@@ -1,209 +1,164 @@
-# G3-V2 — Single-Camera Gait Data Recorder
+# GAIT — Movement Capture Experience
 
-## Live web camera and ML
+GAIT is a local, privacy-conscious movement-capture project. It combines a premium Svelte/Vite sports interface with a Python HTTP backend and local MediaPipe assets. The current product flow takes an athlete from a motion-led landing page to camera selection, a full-screen 10-second movement recording, and a truthful results report.
 
-Run `bash scripts/run_web.sh`, then open `http://127.0.0.1:5173`.
-The launcher starts the Python API and Svelte UI together. Stop it with Ctrl+C.
-Camera opens the first readable external USB capture device and automatically
-loads the existing pose and hand models. If several external cameras are attached,
-disconnect the ones you do not intend to use. Built-in camera names are excluded
-using the existing name heuristics; check the displayed camera name before recording.
-Start in Test Studio also records a 60-second CSV session.
-Stop saves early and releases the camera; navigating away stops capture too.
-After a timed recording, preview stays live until Stop. Use one browser tab.
-If the browser stops checking status for 15 seconds, capture saves and stops.
-CSV output remains in `data/sessions/` and excludes face landmarks.
-Camera disconnects and model errors are shown in Test Studio; reconnect and retry.
-This is a local development service, bound to loopback, not an internet deployment.
-Dashboard and session history read saved recordings through `/api/sessions`.
-Report tabs show actual frame counts, landmark counts, and the interval between
-the first and last captured sample. This sample span is not the total test duration.
-Joint angles and symmetry remain explicitly uncalculated; coaching is not active.
-The history supports search, status filtering, session reports, and CSV downloads.
-The guided studio opens preview with Camera and records with Start. Dashboard's
-Begin button takes you to setup first. Expandable help explains readiness and data.
-Restart the Python backend after updating to enable the new session endpoints.
-Live ML means landmark tracking, not a trained gait diagnosis classifier.
+## What was built
 
-This is a small, separate MediaPipe project for one USB camera. It does not
-modify or replace an existing three-camera project.
-
-## Folder roles
+### Product flow
 
 ```text
-.
-├── models/               downloaded MediaPipe pose model (not stored in Git)
-├── scripts/
-│   ├── setup.sh          creates the virtual environment and installs packages
-│   └── run_pose.sh       starts the pose camera program
-├── src/
-│   ├── check_setup.py    checks versions, model, and camera 0
-│   └── pose_camera.py    reads one camera and draws body landmarks
-├── .gitignore            keeps generated files out of Git
-└── requirements.txt      exact Python package versions
+Landing page
+  → Start GAIT Test creates a local session
+  → Choose your camera
+  → Full-screen activity recording
+  → 3–2–1 countdown and 10-second frame capture
+  → Result report for that session
 ```
 
-## Step 1: Connect the camera
+- **Landing page:** A high-performance sports landing experience with the GAIT identity, a lazy-loaded interactive running-athlete statue, movement stories, athlete cards, live ticker, and prominent “Start GAIT Test” calls to action.
+- **Session creation:** Starting a test creates a session with `POST /api/session/create`. The session ID is retained in browser storage so the capture flow can keep its context.
+- **Camera selection:** Real browser cameras are discovered using `navigator.mediaDevices.enumerateDevices()` after permission is requested. LEFT, BACK, and RIGHT slots support one to three simultaneous views, deduplicated labels, persisted rotations, per-camera quality modes, live portrait previews, and 60→30 FPS fallback.
+- **Full-screen activity capture:** Selected streams are passed to the activity screen without asking for permission again. Users can select Normal Walk, Fast Walk, Run, Balance, or Toe Walk; inspect per-view body/FPS status; and rotate a view before recording.
+- **Recording:** Pressing **Start Test** requests fullscreen, calls `POST /api/gait/start`, runs a GSAP 3–2–1 countdown, and captures each active view on one shared clock with `requestVideoFrameCallback` (interval fallback). A bounded shared upload queue retries transient failures without blocking video rendering.
+- **Readiness and live overlay:** Before recording, live MediaPipe responses drive body-in-frame, full-body-visible, and distance checks. During capture, normalized backend keypoints draw the skeleton and a fading blue/orange footprint trail. Users can explicitly start anyway when a readiness check is unavailable.
+- **Result report:** The result screen has keyboard-accessible Overview, Skeleton Replay, Charts, and Quality tabs. It polls while analysis runs, replays stored landmarks without raw video, provides an All/Left/Back/Right filter, explains unavailable metrics, includes per-view capture quality, and supports retake/delete actions.
 
-Connect one USB camera. Check that Linux can see it:
+## Design and interaction system
 
-```bash
-v4l2-ctl --list-devices
+The interface follows a light, minimal sports direction:
+
+- **Palette:** off-white `#F8F8F6` / `#F9F9F5`, near-black `#07171C`, and cyan accent `#00C8F5` / `#00E5FF`.
+- **Typography:** Manrope variable font with tight, bold display type and restrained uppercase labels.
+- **Motion:** GSAP powers entry reveals, scroll-triggered hero movement, list staggers, the recording countdown, and result counters. Lenis provides smooth scrolling on the landing page; it is intentionally not used during the full-screen camera experience.
+- **3D:** Three.js renders a lightweight interactive runner statue in the hero section. It is code-split from the rest of the bundle and uses a procedural fallback until an owned/licensed GLB is supplied.
+- **Usability:** The layout responds for mobile, uses visible keyboard focus, supports reduced motion, keeps the camera controls in the thumb-friendly lower area, and uses real status/error messages instead of simulated success states.
+
+## Technology
+
+| Layer | Implementation |
+| --- | --- |
+| Frontend | Svelte 5 + Vite + TypeScript |
+| Motion | GSAP, ScrollTrigger, Lenis |
+| 3D | Three.js |
+| Styling | Component CSS, design tokens in `frontend/src/sport.css`, Tailwind available through Vite |
+| Browser APIs | MediaDevices, `getUserMedia`, Canvas, `toBlob`, `localStorage` |
+| Backend | Python `ThreadingHTTPServer`, OpenCV, MediaPipe assets |
+| Transport | Fetch client in `frontend/src/lib/api.ts` |
+
+This is a **Vite/Svelte single-page app**, not a SvelteKit project. The camera, activity, and result screens are Svelte components mounted by `frontend/src/App.svelte`; their source folders are organized as `routes/` for clarity but are not file-system URLs.
+
+## Important files
+
+```text
+frontend/
+├── src/App.svelte                         Landing page and flow coordinator
+├── src/sport.css                          Shared GAIT visual tokens and landing styling
+├── src/components/AthleteStatueScene.svelte Interactive Three.js hero runner statue
+├── src/components/Tabs.svelte             Shared keyboard-accessible activity/report tabs
+├── src/lib/api.ts                         Fetch-based backend client
+├── src/lib/stores/session.ts              Session, activity, and shared camera-stream stores
+└── src/routes/
+    ├── gait-test/+page.svelte             Camera discovery and preview handoff
+    ├── activity/+page.svelte              Full-screen recording and canvas overlay
+    └── result/[sessionId]/+page.svelte    Animated session result report
+
+src/
+├── web_server.py                          Local API, CORS policy, sessions, and camera endpoints
+├── gait_analysis.py                       Browser-frame MediaPipe processing and conservative metrics
+├── pose_camera.py                         Existing local camera + MediaPipe pose/hand capture program
+├── cameras.py                             Linux V4L2 camera discovery and configuration
+└── recorder.py                            CSV landmark recording utilities
+
+scripts/run_web.sh                         Starts the Python API and Vite UI together
 ```
 
-The program uses camera index `0`, normally `/dev/video0`.
+## API used by the browser flow
 
-## Step 2: Install in an isolated environment
+All browser control requests include the `X-Gait-Control: 1` header. In development, Vite proxies `/api` calls from port `5173` to the Python API on port `8765`.
 
-From this project folder:
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/session/create` | Create a GAIT capture session |
+| `GET` | `/api/cameras` | List deduplicated Linux camera labels for diagnostics |
+| `POST` | `/api/gait/start` | Mark a session as recording and save activity + active-view metadata |
+| `POST` | `/api/frame/{sessionId}?view=left&seq=N&t=ms` | Receive an uploaded JPEG frame (maximum 2 MB) for a named view |
+| `POST` | `/api/gait/stop/{sessionId}` | Mark the recording as captured |
+| `GET` | `/api/gait/result/{sessionId}` | Return capture state, frame count, and available metrics |
+| `DELETE` | `/api/session/{sessionId}` | Delete an in-memory browser capture and its landmarks |
+| `GET` | `/api/status` | Inspect the existing local camera service |
+| `GET` | `/api/health` | Verify the browser-frame API is reachable |
+| `GET` | `/api/sessions` | List saved CSV sessions from the existing recorder |
+
+`frontend/src/lib/api.ts` reads `VITE_API_URL` when provided. If it is not set, it uses relative `/api` URLs so the Vite proxy works automatically. When setting `VITE_API_URL`, point it at the running Python backend, for example `http://127.0.0.1:8765`.
+
+## Current analysis boundary
+
+`POST /api/frame/{sessionId}` now validates and decodes each JPEG in memory, runs the local MediaPipe pose model, and returns normalized landmarks with visibility scores. During a recording, the server retains only those landmarks and timestamps. Raw frames and video are never saved.
+
+On stop, the server reports capture quality, missing-body segments, detected step/contact peaks, cadence, step-time symmetry, left/right knee and hip motion range, mean trunk lean, and normalized balance sway when sufficient visible data exists. Every metric includes an availability flag, unit, confidence, and reason. Values remain unavailable when the signal does not meet the minimum sample/visibility rules.
+
+Stride length and physical speed intentionally remain unavailable because a single uncalibrated 2D camera cannot provide a defensible real-world distance. Balance sway is reported in normalized frame units, not centimetres or force-plate units. The interface does not create random fallback values.
+
+## Run locally
+
+### One command (recommended)
 
 ```bash
-chmod +x scripts/setup.sh scripts/run_pose.sh
-./scripts/setup.sh
+bash scripts/run_web.sh
 ```
 
-The packages are installed only inside `.venv`. They will not change the
-packages used by the existing three-camera project.
+This starts:
 
-## Step 3: Verify everything
+- Svelte/Vite UI: `http://127.0.0.1:5173`
+- Python API: `http://127.0.0.1:8765`
+
+Before the first run, install both environments:
 
 ```bash
-.venv/bin/python -m src.check_setup
+bash scripts/setup.sh
+(cd frontend && npm install)
 ```
 
-Expected output includes MediaPipe `0.10.35`, the OpenCV version, `Pose model:
-ready`, and the external USB camera resolution. To check the built-in camera
-instead, add `--camera built-in`.
+Stop both services with `Ctrl+C`.
 
-## Step 4: Run pose detection and recording
-
-List the cameras first:
-
-```bash
-./scripts/run_pose.sh --list-cameras
-
-
-Use the external USB camera (default):
-
-```bash
-./scripts/run_pose.sh
-# Same as: ./scripts/run_pose.sh --camera usb
-```
-
-Use the laptop's built-in camera only when requested:
-
-```bash
-./scripts/run_pose.sh --camera built-in
-```
-
-If Linux reports several camera devices, select the exact one shown by the
-list command:
-
-```bash
-./scripts/run_pose.sh --camera /dev/video2
-```
-
-The camera requests 1280x720 at 60 FPS using MJPEG and opens in fullscreen.
-The image is cropped to fill the complete display without white borders. The
-bottom-left overlay separately shows display, pose, hand, and camera FPS. The
-default `fast` profile runs pose and hand inference in independent background
-workers on a 640x360 ML copy while keeping the visible camera image at 720p.
-Body inference has priority. Hand detection searches at a lower rate while no
-hand is visible, then increases its tracking rate automatically when a hand is
-found. This prevents hand detection from continuously reducing body FPS.
-Stand where your full body is visible. The
-body tracker excludes all face landmarks and smooths small landmark movement
-to reduce jitter. Showing either hand automatically enables hand landmarks
-with thin lines and small dots.
-
-Press `Q` or `Esc` to stop. Press `F` to switch between fullscreen and a
-normal window.
-
-### Record gait landmarks to CSV
-
-Start the app with a session name and activity label:
-
-```bash
-./scripts/run_pose.sh --camera usb \
-  --session-name "participant-01-walk-01" \
-  --activity walking
-```
-
-Recording controls inside the camera window:
-
-- `R`: start recording
-- `P`: pause or resume recording
-- `S`: save and stop recording
-- `Q` or `Esc`: safely save an active recording and exit
-
-CSV files are saved under `data/sessions/`. Each row contains the session ID,
-session name, activity, frame index, UTC timestamp, active elapsed time, model
-timestamp, landmark index/name, normalized `x`, `y`, and `z`, visibility, and
-presence confidence.
-
-The privacy-focused default saves the 22 body landmarks numbered 11–32 and
-does not save MediaPipe's 11 face/head landmarks. If a study genuinely needs
-all 33 landmarks, start with `--include-face`:
-
-```bash
-./scripts/run_pose.sh --camera usb --include-face
-```
-
-Only new pose inference results are recorded. Repeated display frames are not
-duplicated in the CSV.
-
-For the slower full pose model, use:
-
-```bash
-./scripts/run_pose.sh --camera usb --quality accurate
-```
-
-This version uses the CPU. A GPU is not required.
-
-## Simple version-control workflow
-
-After a working change:
-
-```bash
-git status
-git add .
-git commit -m "Describe the working change"
-```
-
-Create a commit only after testing. This gives you a safe point to return to.
-
-## Gait ML roadmap after Version 2
-
-1. Normalize recorded coordinates so distance from the camera affects them less.
-2. Calculate gait features such as knee angle, hip angle, step timing, and
-   left-right symmetry.
-3. Record labelled walking examples for the gait classes you actually need.
-4. Train a small CPU-friendly model, starting with Random Forest or XGBoost.
-5. Test by person: do not put frames from one person in both training and test
-   sets.
-6. Add live prediction only after offline test results are reliable.
-
-Do not train a model directly on camera images yet; landmarks are much simpler
-and need far less data and CPU.
-
-## AURA Motion frontend
-
-The Svelte 5 interface is in `frontend/`. It includes a cream-and-red glass
-design, responsive dashboard, guided live camera capture, searchable session
-history, keyboard-accessible report tabs, and expandable help. Session summaries
-come from saved CSVs. Joint angles and symmetry remain explicitly uncalculated.
-Use `bash scripts/run_web.sh` to start both the frontend and Python API together.
-For frontend-only development, run:
+### Frontend only
 
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
-Validation commands:
+The UI expects the Python API to be running if you start a GAIT test.
+
+## Validation completed
 
 ```bash
-npm run check
-npm run build
+cd frontend
+npm run check    # Svelte + TypeScript validation
+npm run build    # Production Vite bundle
+
+cd ..
+python -m py_compile src/web_server.py
 ```
+
+The current implementation passes `svelte-check` with zero errors and zero warnings, builds successfully, and compiles the Python web server.
+
+## Existing local camera recorder
+
+The original standalone recorder remains available and is separate from the browser flow:
+
+```bash
+./scripts/run_pose.sh --list-cameras
+./scripts/run_pose.sh --camera usb
+```
+
+It opens a Linux V4L2 camera, requests 1280×720 at 60 FPS, runs local MediaPipe pose/hand inference, and can save body landmarks to CSV in `data/sessions/`. It excludes face landmarks by default. See `src/pose_camera.py` for its capture and keyboard controls.
+
+## Safe next development steps
+
+1. Validate cadence and symmetry algorithms against labelled recordings from the intended camera placement and activities.
+2. Add an explicit calibration or known-height workflow before enabling stride length or physical speed.
+3. Persist landmark sessions only after retention, consent, and deletion policies are defined; browser sessions are currently memory-only.
+4. Add downloadable reports only after the metrics and quality thresholds are validated.
+
+GAIT is a movement-capture prototype, not a medical device or diagnosis tool.
