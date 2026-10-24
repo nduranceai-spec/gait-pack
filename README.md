@@ -93,10 +93,13 @@ All browser control requests include the `X-Gait-Control: 1` header. In developm
 
 ## Deploying as one Vercel project
 
-Import the repository root as a single Vercel project. The root `vercel.json`
-builds the Svelte app from `client/`, deploys the Python API from `api/index.py`,
-routes `/api/*` requests to that function, and serves the built app for page
-routes. Do not create separate Vercel projects for `client/` and `server/`.
+Import the repository root as a single Vercel project and keep the Vercel
+project's Root Directory set to `.` (the repository root). The root
+`vercel.json` declares both the Svelte frontend in `client/` and Python backend
+in `server/` as services within that project. `/api/*` routes to the backend;
+other paths route to the frontend. The frontend build output is `client/dist`,
+matching the Vite `build.outDir` setting. Do not create separate Vercel projects
+or set the Vercel project's Root Directory to `client/` or `server/`.
 
 The deployed Python API runs as serverless functions. Browser capture sessions
 are currently held in process memory and files are written to temporary
