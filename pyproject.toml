@@ -17,11 +17,4 @@ dependencies = [
 where = ["."]
 include = ["src*"]
 
-# ---------------------------------------------------------------------------
-# Vercel Python serverless entrypoint
-# Vercel looks for a WSGI/ASGI callable or a BaseHTTPRequestHandler subclass.
-# The Handler class in src/web_server.py is a BaseHTTPRequestHandler that
-# Vercel's Python runtime can serve directly as a serverless function.
-# ---------------------------------------------------------------------------
-[tool.vercel]
-entrypoint = "api/index:Handler"
+
