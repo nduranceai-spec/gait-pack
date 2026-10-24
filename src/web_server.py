@@ -18,15 +18,33 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-from src.cameras import BUILT_IN_HINTS, find_cameras, open_camera
 from src.gait_analysis import BrowserPoseProcessor, analyse_session
-from src.pose_camera import InferenceWorker, LandmarkSmoother, draw_hands, draw_pose
-from src.recorder import GaitRecorder, RecordingState
 from src.sessions import list_sessions, session_path
+
+# ---------------------------------------------------------------------------
+# Hardware mode: True when running locally with a physical camera attached.
+# On Vercel (and other serverless platforms) the camera / recording stack is
+# unavailable.  Setting GAIT_HARDWARE_MODE=0 (or leaving it unset in a cloud
+# environment) skips those imports so the process doesn't crash at startup.
+# ---------------------------------------------------------------------------
+HARDWARE_MODE: bool = os.environ.get("GAIT_HARDWARE_MODE", "1").strip() not in {"0", "false", "no", ""}
+
+if HARDWARE_MODE:
+    try:
+        from src.cameras import BUILT_IN_HINTS, find_cameras, open_camera
+        from src.pose_camera import InferenceWorker, LandmarkSmoother, draw_hands, draw_pose
+        from src.recorder import GaitRecorder, RecordingState
+    except Exception:  # pragma: no cover
+        HARDWARE_MODE = False
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_ROOT = Path(os.environ.get("GAIT_DATA_DIR", "/home/aravindhan/Projects/data")).expanduser()
+
+# On Vercel the only writable directory is /tmp.  Fall back to it when the
+# configured path is the old hard-coded local one or doesn't exist yet.
+_default_data = "/tmp/gait-data" if os.environ.get("VERCEL") else "/home/aravindhan/Projects/data"
+DATA_ROOT = Path(os.environ.get("GAIT_DATA_DIR", _default_data)).expanduser()
+
 MAX_FRAME_BYTES = 2_000_000
 
 
@@ -61,7 +79,16 @@ class BrowserGaitSession:
 
 browser_sessions: dict[str, BrowserGaitSession] = {}
 browser_sessions_lock = threading.RLock()
-browser_pose = BrowserPoseProcessor(ROOT / "models/pose_landmarker_lite.task")
+
+# Locate the model file — support both the repo layout and a flat /var/task
+# deployment layout that Vercel uses after bundling.
+_model_candidates = [
+    ROOT / "models" / "pose_landmarker_lite.task",
+    Path("/var/task/models/pose_landmarker_lite.task"),
+    Path("/tmp/models/pose_landmarker_lite.task"),
+]
+_model_path = next((p for p in _model_candidates if p.is_file()), ROOT / "models" / "pose_landmarker_lite.task")
+browser_pose = BrowserPoseProcessor(_model_path)
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -273,6 +300,11 @@ def allowed_origins() -> set[str]:
         "http://127.0.0.1:4173", "http://localhost:4173",
         "http://127.0.0.1:8765", "http://localhost:8765",
     }
+    # Automatically trust *.vercel.app origins so preview deployments work
+    # without having to hard-code each URL.
+    vercel_origin = os.environ.get("VERCEL_URL", "")
+    if vercel_origin:
+        defaults.add(f"https://{vercel_origin}")
     return defaults | {origin.strip() for origin in configured.split(",") if origin.strip()}
 
 
@@ -282,7 +314,12 @@ def listed_cameras() -> list[dict]:
     A BRIO exposes auxiliary metadata and greyscale nodes. ``find_cameras`` has
     already filtered those, and the node path is intentionally retained so
     identical BRIO labels remain distinguishable.
+
+    Returns an empty list when running in serverless / cloud environments
+    where no physical camera device is accessible.
     """
+    if not HARDWARE_MODE:
+        return []
     unique: dict[str, dict] = {}
     for camera in find_cameras():
         key = str(camera.path)
@@ -297,6 +334,13 @@ def listed_cameras() -> list[dict]:
 
 
 class CameraService:
+    """Live USB-camera recording service.
+
+    On Vercel (HARDWARE_MODE=False) this object is still instantiated so the
+    rest of the module stays unchanged, but all methods are no-ops and status
+    returns a clear ``unavailable`` state.
+    """
+
     def __init__(self):
         self.lock = threading.RLock()
         self.thread = None
@@ -314,6 +358,20 @@ class CameraService:
         self.last_seen = time.monotonic()
 
     def status(self):
+        if not HARDWARE_MODE:
+            return {
+                "state": "unavailable",
+                "error": "Camera hardware is not accessible in this environment.",
+                "camera": "",
+                "pose_fps": 0.0,
+                "hand_fps": 0.0,
+                "body_detected": False,
+                "recording": "IDLE",
+                "frames": 0,
+                "remaining": 0,
+                "file": None,
+                "hardware_mode": False,
+            }
         with self.lock:
             self.last_seen = time.monotonic()
             return {
@@ -327,9 +385,12 @@ class CameraService:
                 "frames": self.recorder.frame_count if self.recorder else 0,
                 "remaining": max(0, round(self.deadline - time.monotonic())) if self.deadline else 60,
                 "file": self.recorder.output_path.name if self.recorder and self.recorder.output_path else None,
+                "hardware_mode": True,
             }
 
     def start(self, record=False):
+        if not HARDWARE_MODE:
+            raise RuntimeError("Camera hardware is not available in this environment.")
         with self.lock:
             if self.state == "stopping":
                 raise RuntimeError("Camera is stopping. Please try again shortly.")
@@ -524,6 +585,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(404, b'{"error":"Session not found"}')
         elif path == "/api/status":
             self._send(200, json.dumps(service.status()).encode())
+        elif path == "/api/hardware":
+            self._send(200, json.dumps({"hardware_mode": HARDWARE_MODE}).encode())
         elif path == "/api/cameras":
             self._send(200, json.dumps(listed_cameras()).encode())
         elif path.startswith("/api/gait/result/"):
@@ -735,16 +798,23 @@ class Handler(BaseHTTPRequestHandler):
                     "elapsedSec": round(elapsed, 4),
                 }).encode())
                 return
-            if path == "/api/camera/start":
-                service.start()
-            elif path == "/api/test/start":
-                service.start(record=True)
-            elif path == "/api/camera/stop":
-                service.stop()
+            if path in ("/api/camera/start", "/api/test/start", "/api/camera/stop"):
+                if not HARDWARE_MODE:
+                    self._send(503, json.dumps({
+                        "error": "Camera hardware is not available in this deployment.",
+                        "hardware_mode": False,
+                    }).encode())
+                    return
+                if path == "/api/camera/start":
+                    service.start()
+                elif path == "/api/test/start":
+                    service.start(record=True)
+                elif path == "/api/camera/stop":
+                    service.stop()
+                self._send(200, json.dumps(service.status()).encode())
             else:
                 self._send(404, b'{"error":"Not found"}')
                 return
-            self._send(200, json.dumps(service.status()).encode())
         except Exception as error:
             self._send(409, json.dumps({"error": str(error)}).encode())
 
@@ -777,8 +847,10 @@ def main():
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, shutdown)
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-    print("Gait backend ready at http://127.0.0.1:8765", flush=True)
+    host = os.environ.get("GAIT_HOST", "127.0.0.1")
+    port = int(os.environ.get("GAIT_PORT", "8765"))
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Gait backend ready at http://{host}:{port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
