@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--camera",
         default="usb",
-        help="usb (default), built-in, a number such as 2, or /dev/video2",
+        help="usb (default), built-in, a numeric device index such as 0, or Linux /dev/video2",
     )
     parser.add_argument("--list-cameras", action="store_true")
     return parser.parse_args()
@@ -28,8 +28,9 @@ def main() -> int:
     print(f"MediaPipe: {mp.__version__}")
     print(f"OpenCV: {cv2.__version__}")
 
-    pose_model_path = Path("models/pose_landmarker_full.task")
-    hand_model_path = Path("models/hand_landmarker.task")
+    model_dir = Path(__file__).resolve().parents[1] / "models"
+    pose_model_path = model_dir / "pose_landmarker_full.task"
+    hand_model_path = model_dir / "hand_landmarker.task"
     print(f"Pose model: {'ready' if pose_model_path.exists() else 'missing'}")
     print(f"Hand model: {'ready' if hand_model_path.exists() else 'missing'}")
 

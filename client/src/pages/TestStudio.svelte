@@ -81,7 +81,7 @@
       } catch {
         if (!disposed) {
           status = null;
-          connectionError = 'Cannot reach the backend. Start scripts/run_web.sh and check its terminal.';
+          connectionError = 'Cannot reach the backend. Start python scripts/run_web.py and check its terminal.';
           if (preview) URL.revokeObjectURL(preview);
           preview = '';
         }

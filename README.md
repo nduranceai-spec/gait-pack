@@ -40,23 +40,23 @@ The interface follows a light, minimal sports direction:
 | Frontend | Svelte 5 + Vite + TypeScript |
 | Motion | GSAP, ScrollTrigger, Lenis |
 | 3D | Three.js |
-| Styling | Component CSS, design tokens in `frontend/src/sport.css`, Tailwind available through Vite |
+| Styling | Component CSS, design tokens in `client/src/sport.css`, Tailwind available through Vite |
 | Browser APIs | MediaDevices, `getUserMedia`, Canvas, `toBlob`, `localStorage` |
 | Backend | Python `ThreadingHTTPServer`, OpenCV, MediaPipe assets |
-| Transport | Fetch client in `frontend/src/lib/api.ts` |
+| Transport | Fetch client in `client/src/lib/api.ts` |
 
-This is a **Vite/Svelte single-page app**, not a SvelteKit project. The camera, activity, and result screens are Svelte components mounted by `frontend/src/App.svelte`; their source folders are organized as `routes/` for clarity but are not file-system URLs.
+This is a **Vite/Svelte single-page app**, not a SvelteKit project. The camera, activity, and result screens are Svelte components mounted by `client/src/App.svelte`; their source folders are organized as `routes/` for clarity but are not file-system URLs.
 
 ## Important files
 
 ```text
-frontend/
+client/
 ├── src/App.svelte                         Landing page and flow coordinator
 ├── src/sport.css                          Shared GAIT visual tokens and landing styling
 ├── src/components/AthleteStatueScene.svelte Interactive Three.js hero runner statue
 ├── src/components/Tabs.svelte             Shared keyboard-accessible activity/report tabs
-├── src/lib/api.ts                         Fetch-based backend client
-├── src/lib/stores/session.ts              Session, activity, and shared camera-stream stores
+├── src/lib/api.ts                          Fetch-based backend client
+├── src/lib/stores/session.ts               Session, activity, and shared camera-stream stores
 └── src/routes/
     ├── gait-test/+page.svelte             Camera discovery and preview handoff
     ├── activity/+page.svelte              Full-screen recording and canvas overlay
@@ -66,10 +66,11 @@ src/
 ├── web_server.py                          Local API, CORS policy, sessions, and camera endpoints
 ├── gait_analysis.py                       Browser-frame MediaPipe processing and conservative metrics
 ├── pose_camera.py                         Existing local camera + MediaPipe pose/hand capture program
-├── cameras.py                             Linux V4L2 camera discovery and configuration
+├── cameras.py                             Linux V4L2 and cross-platform OpenCV camera discovery
 └── recorder.py                            CSV landmark recording utilities
 
-scripts/run_web.sh                         Starts the Python API and Vite UI together
+scripts/setup.py                           Cross-platform Python, frontend, and model setup
+scripts/run_web.py                         Starts the Python API and Vite UI together
 ```
 
 ## API used by the browser flow
@@ -79,7 +80,7 @@ All browser control requests include the `X-Gait-Control: 1` header. In developm
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/session/create` | Create a GAIT capture session |
-| `GET` | `/api/cameras` | List deduplicated Linux camera labels for diagnostics |
+| `GET` | `/api/cameras` | List cameras available to the local backend for diagnostics |
 | `POST` | `/api/gait/start` | Mark a session as recording and save activity + active-view metadata |
 | `POST` | `/api/frame/{sessionId}?view=left&seq=N&t=ms` | Receive an uploaded JPEG frame (maximum 2 MB) for a named view |
 | `POST` | `/api/gait/stop/{sessionId}` | Mark the recording as captured |
@@ -89,7 +90,7 @@ All browser control requests include the `X-Gait-Control: 1` header. In developm
 | `GET` | `/api/health` | Verify the browser-frame API is reachable |
 | `GET` | `/api/sessions` | List saved CSV sessions from the existing recorder |
 
-`frontend/src/lib/api.ts` reads `VITE_API_URL` when provided. If it is not set, it uses relative `/api` URLs so the Vite proxy works automatically. When setting `VITE_API_URL`, point it at the running Python backend, for example `http://127.0.0.1:8765`.
+`client/src/lib/api.ts` reads `VITE_API_URL` when provided. If it is not set, it uses relative `/api` URLs so the Vite proxy works automatically. When setting `VITE_API_URL`, point it at the running Python backend, for example `http://127.0.0.1:8765`.
 
 ## Deploying as one Vercel project
 
@@ -118,58 +119,116 @@ Stride length and physical speed intentionally remain unavailable because a sing
 
 ## Run locally
 
-### One command (recommended)
+### Windows and Linux
 
-```bash
-bash scripts/run_web.sh
+Requirements:
+
+- Python 3.12
+- Node.js 22 LTS (includes npm)
+- A camera for capture
+
+Run setup once from the repository root:
+
+```powershell
+# Windows PowerShell
+py -3.12 scripts/setup.py
 ```
 
-This starts:
+```bash
+# Linux
+python3.12 scripts/setup.py
+```
+
+Setup creates the Python virtual environment, installs the local OpenCV GUI
+build and frontend packages, and downloads the MediaPipe models into
+`server/models/`. To start both services:
+
+```powershell
+# Windows PowerShell
+.\.venv\Scripts\python.exe scripts\run_web.py
+```
+
+```bash
+# Linux
+.venv/bin/python scripts/run_web.py
+```
+
+The launcher uses the project's virtual environment and starts:
 
 - Svelte/Vite UI: `http://127.0.0.1:5173`
 - Python API: `http://127.0.0.1:8765`
 
-Before the first run, install both environments:
-
-```bash
-bash scripts/setup.sh
-(cd frontend && npm install)
-```
-
-Stop both services with `Ctrl+C`.
+Stop both services with `Ctrl+C`. The Bash wrappers in `scripts/` remain
+available on Linux.
 
 ### Frontend only
 
 ```bash
-cd frontend
+cd client
 npm run dev
 ```
 
 The UI expects the Python API to be running if you start a GAIT test.
 
+### Local camera and pose recorder
+
+The browser-based capture flow uses the browser's camera permission prompt and
+works on Windows and Linux without selecting a server-side camera. The
+optional native pose recorder uses OpenCV: Linux discovers V4L2 devices, while
+Windows uses DirectShow/Media Foundation camera indices.
+
+List available cameras:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_pose.py --list-cameras
+```
+
+When multiple cameras are available, select the listed numeric index on
+Windows (for example `--camera 0`). On Linux, `--camera usb` selects an
+identifiable external USB camera; use a device index or `/dev/videoN` for an
+exact choice:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_pose.py --camera 0
+```
+
+```bash
+.venv/bin/python scripts/run_pose.py --camera usb
+```
+
+The optional local web camera service selects an external USB camera when
+Linux can identify one. On Windows, a single detected camera is selected
+automatically; with multiple cameras, set `GAIT_CAMERA` to the listed numeric
+index before starting the app. For example, in PowerShell set
+`$env:GAIT_CAMERA = "0"` before launching; in Linux use
+`GAIT_CAMERA=0 .venv/bin/python scripts/run_web.py`. Camera hardware attached
+to the user's computer is not directly available to the Vercel server; hosted
+capture uses the browser camera and uploads frames to the API.
+
 ## Validation completed
 
 ```bash
-cd frontend
+cd client
 npm run check    # Svelte + TypeScript validation
 npm run build    # Production Vite bundle
 
 cd ..
-python -m py_compile src/web_server.py
+python -m py_compile server/src/web_server.py
 ```
 
-The current implementation passes `svelte-check` with zero errors and zero warnings, builds successfully, and compiles the Python web server.
+Run these checks from the repository root or in the matching workspace folder;
+the Windows/Linux matrix in `.github/workflows/ci.yml` runs them on both systems.
 
 ## Existing local camera recorder
 
 The original standalone recorder remains available and is separate from the browser flow:
 
 ```bash
-./scripts/run_pose.sh --list-cameras
-./scripts/run_pose.sh --camera usb
+.venv/bin/python scripts/run_pose.py --list-cameras
+.venv/bin/python scripts/run_pose.py --camera usb
 ```
 
-It opens a Linux V4L2 camera, requests 1280×720 at 60 FPS, runs local MediaPipe pose/hand inference, and can save body landmarks to CSV in `data/sessions/`. It excludes face landmarks by default. See `src/pose_camera.py` for its capture and keyboard controls.
+It requests 1280×720 at 60 FPS, runs local MediaPipe pose/hand inference, and can save body landmarks to CSV in `server/data/sessions/`. It excludes face landmarks by default. See `server/src/pose_camera.py` for its capture and keyboard controls.
 
 ## Safe next development steps
 

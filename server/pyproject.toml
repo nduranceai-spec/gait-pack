@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "gait-perfect"
@@ -9,12 +9,10 @@ description = "Gait analysis backend — browser-based pose capture and metric e
 requires-python = ">=3.11"
 dependencies = [
     "mediapipe==0.10.35",
-    "opencv-contrib-python==4.11.0.86",
+    "opencv-contrib-python-headless==4.11.0.86",
     "numpy>=1.26",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
-
-
