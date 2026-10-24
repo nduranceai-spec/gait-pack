@@ -308,6 +308,21 @@ def allowed_origins() -> set[str]:
     return defaults | {origin.strip() for origin in configured.split(",") if origin.strip()}
 
 
+def is_origin_allowed(origin: str | None) -> bool:
+    if not origin:
+        return True
+    if origin in allowed_origins():
+        return True
+    try:
+        host = urlparse(origin).netloc or urlparse(origin).path
+        host = host.split(":")[0].lower()
+        if host.endswith(".vercel.app") or host.endswith(".vercel.dev") or host == "vercel.app":
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def listed_cameras() -> list[dict]:
     """Return Linux video-capture nodes for diagnostics, never browser selection.
 
@@ -541,7 +556,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         origin = self.headers.get("Origin")
-        if origin and origin in allowed_origins():
+        if origin and is_origin_allowed(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Gait-Control")
@@ -552,7 +567,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         origin = self.headers.get("Origin")
-        if origin and origin not in allowed_origins():
+        if origin and not is_origin_allowed(origin):
             self._send(403, b'{"error":"Untrusted origin"}')
             return
         self._send(204, b"")
@@ -611,7 +626,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         origin = self.headers.get("Origin")
-        if self.headers.get("X-Gait-Control") != "1" or (origin and origin not in allowed_origins()):
+        if self.headers.get("X-Gait-Control") != "1" or (origin and not is_origin_allowed(origin)):
             self._send(403, b'{"error":"Untrusted control request"}')
             return
         try:
@@ -820,7 +835,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         origin = self.headers.get("Origin")
-        if self.headers.get("X-Gait-Control") != "1" or (origin and origin not in allowed_origins()):
+        if self.headers.get("X-Gait-Control") != "1" or (origin and not is_origin_allowed(origin)):
             self._send(403, b'{"error":"Untrusted control request"}')
             return
         path = urlparse(self.path).path
