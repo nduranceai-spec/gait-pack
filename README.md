@@ -91,6 +91,20 @@ All browser control requests include the `X-Gait-Control: 1` header. In developm
 
 `frontend/src/lib/api.ts` reads `VITE_API_URL` when provided. If it is not set, it uses relative `/api` URLs so the Vite proxy works automatically. When setting `VITE_API_URL`, point it at the running Python backend, for example `http://127.0.0.1:8765`.
 
+## Deploying as one Vercel project
+
+Import the repository root as a single Vercel project. The root `vercel.json`
+builds the Svelte app from `client/`, deploys the Python API from `api/index.py`,
+routes `/api/*` requests to that function, and serves the built app for page
+routes. Do not create separate Vercel projects for `client/` and `server/`.
+
+The deployed Python API runs as serverless functions. Browser capture sessions
+are currently held in process memory and files are written to temporary
+`/tmp` storage, so sessions and saved data are not durable and requests are not
+guaranteed to reach the same function instance. The local hardware-camera
+endpoints are also unavailable on Vercel. Use a persistent backend and
+durable storage if hosted captures must survive across requests or deployments.
+
 ## Current analysis boundary
 
 `POST /api/frame/{sessionId}` now validates and decodes each JPEG in memory, runs the local MediaPipe pose model, and returns normalized landmarks with visibility scores. During a recording, the server retains only those landmarks and timestamps. Raw frames and video are never saved.
