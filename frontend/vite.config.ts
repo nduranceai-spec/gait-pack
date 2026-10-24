@@ -4,10 +4,16 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [tailwindcss(), svelte()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    // Proxy /api to the local Python backend during development only.
+    // On Vercel, vercel.json routes handle this at the CDN layer.
     proxy: { '/api': 'http://127.0.0.1:8765' },
   },
   preview: {

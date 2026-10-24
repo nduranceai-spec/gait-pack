@@ -1,0 +1,21 @@
+{
+  "name": "referenced-chatgpt-conversation-this-is-an",
+  "version": "1.0.0",
+  "description": "Run `bash scripts/run_web.sh`, then open `http://127.0.0.1:5173`. The launcher starts the Python API and Svelte UI together. Stop it with Ctrl+C. Camera opens the first readable external USB capture device and automatically loads the existing pose and hand models. If several external cameras are attached, disconnect the ones you do not intend to use. Built-in camera names are excluded using the existing name heuristics; check the displayed camera name before recording. Start in Test Studio also records a 60-second CSV session. Stop saves early and releases the camera; navigating away stops capture too. After a timed recording, preview stays live until Stop. Use one browser tab. If the browser stops checking status for 15 seconds, capture saves and stops. CSV output remains in `data/sessions/` and excludes face landmarks. Camera disconnects and model errors are shown in Test Studio; reconnect and retry. This is a local development service, bound to loopback, not an internet deployment. Dashboard and session history read saved recordings through `/api/sessions`. Report tabs show actual frame counts, landmark counts, and the interval between the first and last captured sample. This sample span is not the total test duration. Joint angles and symmetry remain explicitly uncalculated; coaching is not active. The history supports search, status filtering, session reports, and CSV downloads. The guided studio opens preview with Camera and records with Start. Dashboard's Begin button takes you to setup first. Expandable help explains readiness and data. Restart the Python backend after updating to enable the new session endpoints. Live ML means landmark tracking, not a trained gait diagnosis classifier.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nduranceai-spec/gait-pack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nduranceai-spec/gait-pack/issues"
+  },
+  "homepage": "https://github.com/nduranceai-spec/gait-pack#readme"
+}
