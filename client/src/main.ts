@@ -1,4 +1,6 @@
 import './sport.css';
+import './app.css';
+import './experience.css';
 import App from './App.svelte';
 import { mount } from 'svelte';
 
