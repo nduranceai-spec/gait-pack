@@ -1,4 +1,4 @@
-# Exclude heavy local artifacts from the Vercel deployment bundle
+# Exclude heavy local artifacts and models from the Vercel deployment bundle
 .venv/
 .git/
 .cache/
@@ -15,3 +15,9 @@ server/**/__pycache__/
 api/__pycache__/
 *.pyc
 *.pyo
+models/
+server/models/
+*.task
+*.csv
+.pytest_cache/
+client/.vite/

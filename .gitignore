@@ -6,10 +6,17 @@ __pycache__/
 node_modules/
 models/*.task
 server/models/*.task
-data/sessions/*.csv
-server/data/sessions/*.csv
+server/data/
+data/
 frontend/node_modules/
 frontend/dist/
 client/node_modules/
 client/dist/
+.env
+.env.*
+!.env.example
 
+.vercel/
+.codex/
+.agents/
+client/.vite/

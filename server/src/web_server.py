@@ -2,6 +2,7 @@ import json
 import os
 import re
 import signal
+import sys
 import threading
 import time
 from contextlib import ExitStack
@@ -12,13 +13,19 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from uuid import uuid4
 
+# Support both `python -m src.web_server` and `python src/web_server.py`.
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
+
 os.environ.setdefault("MPLCONFIGDIR", str(Path(__file__).resolve().parents[1] / ".cache/matplotlib"))
 
 import cv2
 import mediapipe as mp
 import numpy as np
 
-from src.gait_analysis import BrowserPoseProcessor, analyse_session
+from src.gait_analysis import analyse_session
+from src.hardware_pose import BrowserPoseProcessor
 from src.sessions import list_sessions, session_path
 
 # ---------------------------------------------------------------------------
@@ -161,6 +168,65 @@ def _close_video_writers(session: BrowserGaitSession) -> None:
 
 def valid_session_id(session_id: str) -> bool:
     return bool(re.fullmatch(r"gait-[0-9a-f]{32}", session_id))
+
+
+def _decode_compact_landmarks(raw_frames: object) -> list[dict]:
+    """Validate browser pose payloads and rebuild indexed landmark arrays."""
+    if not isinstance(raw_frames, list) or len(raw_frames) > 1800:
+        raise ValueError("frames must contain at most 1800 compact frames")
+    frames: list[dict] = []
+    previous_t = -1.0
+    allowed = {11, 12, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    for raw in raw_frames:
+        if not isinstance(raw, list) or len(raw) != 4:
+            raise ValueError("Each frame must be [t, timestamp, seq, landmarks]")
+        t, timestamp, sequence, points = raw
+        if not isinstance(t, (int, float)) or not 0 <= float(t) <= 121 or float(t) < previous_t:
+            raise ValueError("Frame time is invalid")
+        if not isinstance(timestamp, str) or not isinstance(sequence, int) or not isinstance(points, list):
+            raise ValueError("Frame metadata is invalid")
+        previous_t = float(t)
+        indexed = [{"index": index, "x": 0.0, "y": 0.0, "z": 0.0, "visibility": 0.0} for index in range(33)]
+        seen: set[int] = set()
+        for point in points:
+            if not isinstance(point, list) or len(point) != 5:
+                raise ValueError("Landmarks must be [index, x, y, z, visibility]")
+            index, x, y, z, visibility = point
+            if not isinstance(index, int) or index not in allowed or index in seen:
+                raise ValueError("Landmark index is invalid")
+            if not all(isinstance(value, (int, float)) for value in (x, y, z, visibility)):
+                raise ValueError("Landmark coordinates must be numeric")
+            if not -1.5 <= x <= 2.5 or not -1.5 <= y <= 2.5 or not -5 <= z <= 5 or not 0 <= visibility <= 1:
+                raise ValueError("Landmark coordinate is outside the accepted range")
+            seen.add(index)
+            indexed[index] = {"index": index, "x": float(x), "y": float(y), "z": float(z), "visibility": float(visibility)}
+        frames.append({"t": round(float(t), 3), "timestamp": timestamp, "keypoints": [point for point in indexed if point["visibility"] > 0]})
+    return frames
+
+
+def browser_analysis_result(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("Analysis payload must be an object")
+    view = payload.get("view")
+    if view not in {"left", "back", "right"}:
+        raise ValueError("view must be left, back, or right")
+    session_id = str(payload.get("sessionId") or "")
+    if not valid_session_id(session_id):
+        raise ValueError("Invalid GAIT session ID")
+    duration = payload.get("durationSec")
+    if duration not in {30, 60, 120}:
+        raise ValueError("durationSec must be 30, 60, or 120")
+    person = _clean_person(payload.get("person"))
+    activity = str(payload.get("activityType") or "Normal Walk")[:32]
+    frames = _decode_compact_landmarks(payload.get("frames"))
+    sent = payload.get("sentCount", len(frames))
+    if not isinstance(sent, int) or sent < len(frames) or sent > 1800:
+        raise ValueError("sentCount is invalid")
+    analysis = analyse_session(activity, frames, sent)
+    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    detail = {"view": view, "cameraLabel": str(metadata.get("cameraLabel") or "Browser camera")[:120], "rotation": metadata.get("rotation") if metadata.get("rotation") in {0, 90, 180, 270} else 0, "width": metadata.get("width") if isinstance(metadata.get("width"), int) else None, "height": metadata.get("height") if isinstance(metadata.get("height"), int) else None, "fps": metadata.get("fps") if isinstance(metadata.get("fps"), (int, float)) else None, "sent": sent, "received": len(frames), "detected": analysis["detectedFrames"], "detectionRate": round(analysis["detectedFrames"] / max(1, len(frames)), 3), "gaps": analysis["quality"]["missingSegments"], "state": "ready"}
+    metrics = {name: {**value, "sourceViews": [view]} for name, value in analysis["metrics"].items()}
+    return {"sessionId": session_id, "state": "ready", "activity": activity, "timestamp": datetime.now(UTC).isoformat(), "person": person, "frameCount": len(frames), "framesReceived": len(frames), "durationSec": analysis["durationSec"], "detectedFrames": analysis["detectedFrames"], "metrics": metrics, "quality": analysis["quality"], "timeSeries": analysis["timeSeries"], "landmarkTimeline": frames, "landmarksByView": {view: frames}, "views": [detail], "camera": {"name": detail["cameraLabel"], "fps": detail["fps"]}, "message": "Browser-side pose landmarks analyzed locally."}
 
 
 def _view_metadata(session: BrowserGaitSession, view: str) -> dict:
@@ -649,6 +715,18 @@ class Handler(BaseHTTPRequestHandler):
                 with browser_sessions_lock:
                     browser_sessions[session.session_id] = session
                 self._send(201, json.dumps({"sessionId": session.session_id, "timestamp": session.timestamp}).encode())
+                return
+            if path == "/api/analyze":
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if not 0 < content_length <= 4_000_000:
+                        self._send(413, b'{"error":"Analysis payload must be smaller than 4 MB"}')
+                        return
+                    result = browser_analysis_result(json.loads(self.rfile.read(content_length)))
+                except (ValueError, json.JSONDecodeError) as error:
+                    self._send(400, json.dumps({"error": str(error)}).encode())
+                    return
+                self._send(200, json.dumps(result).encode())
                 return
             if path == "/api/gait/start":
                 try:

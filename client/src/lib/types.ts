@@ -1,6 +1,8 @@
 export type PageId = 'dashboard' | 'studio' | 'report' | 'history' | 'coach';
 
 export interface Session {
+  sessionId?: string;
+  source?: string;
   file: string;
   name: string;
   activity: string;

@@ -1,16 +1,151 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { createSession } from './lib/api';
-  import { activityType, sessionId, testDuration } from './lib/stores/session';
+  import { fetchSessions } from './lib/sessions';
+  import { activityType, captureViews, sessionId, testDuration } from './lib/stores/session';
   import { personProfile, validatePersonProfile } from './lib/stores/person';
-  import GaitTest from './routes/gait-test/+page.svelte';
+  import type { PageId, Session } from './lib/types';
+  import Lenis from 'lenis';
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import SportNav from './components/SportNav.svelte';
+  import AppHeader from './components/AppHeader.svelte';
+  import AppSidebar from './components/AppSidebar.svelte';
   import Activity from './routes/activity/+page.svelte';
+  import GaitTest from './routes/gait-test/+page.svelte';
   import Result from './routes/result/[sessionId]/+page.svelte';
+  import Coach from './pages/Coach.svelte';
+  import Dashboard from './pages/Dashboard.svelte';
+  import History from './pages/History.svelte';
+  import Report from './pages/Report.svelte';
 
-  type Stage = 'start' | 'camera' | 'activity' | 'result';
-  let stage = $state<Stage>('start');
+  gsap.registerPlugin(ScrollTrigger);
+
+  type Stage = 'workspace' | 'start' | 'camera' | 'activity' | 'result';
+  type WorkspacePage = Exclude<PageId, 'studio'>;
+  const pageInfo: Record<PageId, { eyebrow: string; title: string }> = {
+    dashboard: { eyebrow: 'Sports & kinetic engine', title: 'Aura Kinetic' },
+    studio: { eyebrow: 'Guided capture', title: 'New movement test' },
+    report: { eyebrow: 'Session detail', title: 'Recording report' },
+    history: { eyebrow: 'Saved locally', title: 'Recordings' },
+    coach: { eyebrow: 'Learn and prepare', title: 'Guidance' },
+  };
+
+  let lenisInstance: Lenis | null = null;
+
+  let stage = $state<Stage>('workspace');
+  let activePage = $state<PageId>('dashboard');
   let completedSessionId = $state<string | null>(null);
+  let selectedFile = $state('');
+  let sessions = $state<Session[]>([]);
+  let sessionsLoading = $state(true);
+  let sessionsError = $state('');
   let starting = $state(false);
   let error = $state('');
+
+  const selectedSession = $derived(sessions.find((item) => item.file === selectedFile) ?? null);
+
+  async function refreshSessions() {
+    sessionsLoading = true;
+    sessionsError = '';
+    try {
+      sessions = await fetchSessions();
+    } catch (failure) {
+      sessionsError = failure instanceof Error ? failure.message : 'Saved sessions could not be loaded.';
+    } finally {
+      sessionsLoading = false;
+    }
+  }
+
+  function locationFor(page: PageId): string {
+    if (page === 'studio') return '/studio';
+    return page === 'dashboard' ? '/' : `/${page}`;
+  }
+
+  function applyLocation() {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    const query = new URLSearchParams(window.location.search);
+    const resultMatch = path.match(/^\/result\/(gait-[0-9a-f]{32})$/);
+
+    if (resultMatch) {
+      completedSessionId = resultMatch[1];
+      stage = 'result';
+      activePage = 'studio';
+      return;
+    }
+
+    switch (path) {
+      case '/studio':
+      case '/test':
+        activePage = 'studio';
+        stage = 'start';
+        break;
+      case '/gait-test':
+      case '/camera':
+        if ($sessionId) {
+          activePage = 'studio';
+          stage = 'camera';
+        } else {
+          activePage = 'studio';
+          stage = 'start';
+        }
+        break;
+      case '/activity': {
+        let hasCaptureViews = false;
+        const unsubscribe = captureViews.subscribe((views) => {
+          hasCaptureViews = Object.keys(views).length > 0;
+        });
+        unsubscribe();
+        activePage = 'studio';
+        stage = hasCaptureViews ? 'activity' : 'start';
+        break;
+      }
+      case '/history':
+        activePage = 'history';
+        stage = 'workspace';
+        break;
+      case '/coach':
+        activePage = 'coach';
+        stage = 'workspace';
+        break;
+      case '/report':
+        activePage = 'report';
+        stage = 'workspace';
+        selectedFile = query.get('file') || '';
+        break;
+      case '/':
+      case '/dashboard':
+      default:
+        activePage = 'dashboard';
+        stage = 'workspace';
+        break;
+    }
+  }
+
+  function navigate(page: PageId, replace = false) {
+    activePage = page;
+    stage = page === 'studio' ? 'start' : 'workspace';
+    selectedFile = '';
+    error = '';
+    const path = locationFor(page);
+    if (replace) window.history.replaceState(null, '', path);
+    else if (window.location.pathname !== path) window.history.pushState(null, '', path);
+  }
+
+  function openSession(item: Session) {
+    if (item.sessionId) {
+      completedSessionId = item.sessionId;
+      stage = 'result';
+      activePage = 'studio';
+      window.history.pushState(null, '', `/result/${encodeURIComponent(item.sessionId)}`);
+      return;
+    }
+    selectedFile = item.file;
+    activePage = 'report';
+    stage = 'workspace';
+    const params = new URLSearchParams({ file: item.file });
+    window.history.pushState(null, '', `/report?${params}`);
+  }
 
   async function startTest() {
     if (starting) return;
@@ -23,6 +158,7 @@
       activityType.set('Normal Walk');
       completedSessionId = null;
       stage = 'camera';
+      window.history.pushState(null, '', '/gait-test');
     } catch (failure) {
       error = failure instanceof Error ? failure.message : 'GAIT could not start a test. Check that the local backend is running.';
     } finally {
@@ -33,24 +169,70 @@
   function reset() {
     completedSessionId = null;
     sessionId.clear();
-    stage = 'start';
+    navigate('dashboard');
   }
 
+  function showActivity() {
+    stage = 'activity';
+    window.history.pushState(null, '', '/activity');
+  }
+
+  function completeTest(id: string) {
+    completedSessionId = id;
+    stage = 'result';
+    window.history.pushState(null, '', `/result/${encodeURIComponent(id)}`);
+    void refreshSessions();
+  }
+
+  onMount(() => {
+    applyLocation();
+    void refreshSessions();
+
+    try {
+      lenisInstance = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+      });
+
+      lenisInstance.on('scroll', ScrollTrigger.update);
+
+      const tickerFn = (time: number) => {
+        lenisInstance?.raf(time * 1000);
+      };
+      gsap.ticker.add(tickerFn);
+      gsap.ticker.lagSmoothing(0);
+    } catch {
+      /* Smooth scroll fallback */
+    }
+
+    const handlePopState = () => applyLocation();
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      lenisInstance?.destroy();
+    };
+  });
 </script>
 
 <svelte:head>
-  <title>GAIT — Live movement test</title>
-  <meta name="description" content="A focused live gait test with movement detection and an instant report." />
+  <title>GAIT — Movement workspace</title>
+  <meta name="description" content="Capture movement, keep your recordings, and review gait analysis." />
 </svelte:head>
 
 {#if stage === 'camera'}
-  <GaitTest onExit={reset} onActivity={() => stage = 'activity'} />
+  <GaitTest onExit={reset} onActivity={showActivity} />
 {:else if stage === 'activity'}
-  <Activity onExit={() => stage = 'camera'} onComplete={(id) => { completedSessionId = id; stage = 'result'; }} />
+  <Activity onExit={() => { stage = 'camera'; window.history.pushState(null, '', '/gait-test'); }} onComplete={completeTest} />
 {:else if stage === 'result' && completedSessionId}
-  <Result sessionId={completedSessionId} onRetake={startTest} onExit={reset} />
-{:else}
+  <Result
+    sessionId={completedSessionId}
+    onRetake={() => { completedSessionId = null; navigate('studio'); }}
+    onExit={reset}
+  />
+{:else if stage === 'start'}
   <main class="start-shell">
+    <button class="workspace-back" onclick={() => navigate('dashboard')}>← WORKSPACE</button>
     <section class="start-card" aria-labelledby="start-title">
       <p class="eyebrow"><i></i> NEW MOVEMENT TEST</p>
       <span class="step">01 / 03 · PERSON DETAILS</span>
@@ -69,10 +251,60 @@
     </section>
     <aside class="flow" aria-label="Test flow"><span class="active">Start</span><i></i><span>Live detection</span><i></i><span>Result</span></aside>
   </main>
+{:else if activePage === 'dashboard'}
+  <div class="sports-layout">
+    <SportNav
+      onStartScan={() => navigate('studio')}
+      onGoToWorkspace={() => navigate('history')}
+    />
+    <Dashboard
+      {sessions}
+      loading={sessionsLoading}
+      error={sessionsError}
+      onRetry={refreshSessions}
+      onStart={() => navigate('studio')}
+      onHistory={() => navigate('history')}
+      onOpen={openSession}
+    />
+  </div>
+{:else}
+  <div class="app-shell experience">
+    <AppSidebar active={activePage} onNavigate={navigate} />
+    <main>
+      <AppHeader
+        eyebrow={pageInfo[activePage].eyebrow}
+        title={pageInfo[activePage].title}
+        onHelp={() => navigate('coach')}
+      />
+      <section class="page-wrap">
+        {#if activePage === 'history'}
+          <History
+            {sessions}
+            loading={sessionsLoading}
+            error={sessionsError}
+            onRetry={refreshSessions}
+            onStart={() => navigate('studio')}
+            onOpen={openSession}
+          />
+        {:else if activePage === 'report'}
+          <Report
+            session={selectedSession}
+            loading={sessionsLoading}
+            error={sessionsError}
+            onHistory={() => navigate('history')}
+            onStart={() => navigate('studio')}
+          />
+        {:else if activePage === 'coach'}
+          <Coach onStart={() => navigate('studio')} />
+        {/if}
+      </section>
+    </main>
+  </div>
 {/if}
 
 <style>
   .start-shell{min-height:100svh;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:40px;padding:clamp(24px,4vw,62px);background:var(--paper);color:var(--ink)}
+  .workspace-back{position:absolute;top:24px;left:clamp(24px,4vw,62px);border:0;background:none;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em}
   .start-card{max-width:760px;padding-bottom:clamp(50px,8vh,100px)}
   .eyebrow{display:flex;align-items:center;gap:8px;margin:0 0 32px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.11em}.eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 5px #00c8f520}
   .step{display:block;margin-bottom:20px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em}
@@ -82,6 +314,6 @@
   .start-button{display:inline-flex;align-items:center;gap:34px;border:0;background:var(--ink);color:var(--paper);padding:18px 20px 18px 23px;font:800 13px/1 inherit;letter-spacing:.07em;cursor:pointer}.start-button span{color:var(--cyan);font-size:23px;line-height:.5}.start-button:disabled{opacity:.5;cursor:wait}
   .privacy{max-width:360px;margin:20px 0 0;color:var(--muted);font-size:10px;line-height:1.55}.start-error{max-width:520px;margin:18px 0 0;padding:11px 13px;background:#ffe9e4;color:#852814;font-size:12px;font-weight:700}
   .flow{display:flex;align-items:center;gap:10px;padding-bottom:8px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.07em;white-space:nowrap}.flow .active{color:var(--ink)}.flow i{width:28px;height:1px;background:#aebbbc}
-  @media(max-width:680px){.start-shell{grid-template-columns:1fr;padding:24px;align-content:space-between;gap:32px}.start-card{padding:70px 0 0}.flow{order:-1;align-self:start}.flow i{width:15px}h1{font-size:clamp(70px,20vw,118px)}.summary{margin-top:30px}.person-form{grid-template-columns:1fr 1fr}.person-form .wide,.duration-picker,.person-form>.start-button{grid-column:1/-1}}
+  @media(max-width:680px){.start-shell{grid-template-columns:1fr;padding:24px;align-content:space-between;gap:32px}.workspace-back{top:14px;left:24px}.start-card{padding:70px 0 0}.flow{order:-1;align-self:start}.flow i{width:15px}h1{font-size:clamp(70px,20vw,118px)}.summary{margin-top:30px}.person-form{grid-template-columns:1fr 1fr}.person-form .wide,.duration-picker,.person-form>.start-button{grid-column:1/-1}}
   @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>

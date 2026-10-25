@@ -8,84 +8,11 @@ from __future__ import annotations
 
 import math
 import statistics
-import threading
-from pathlib import Path
 from typing import Any
-
-import cv2
-import mediapipe as mp
-import numpy as np
 
 
 MIN_VISIBILITY = 0.5
-POSE_CONNECTIONS = (
-    (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
-    (11, 23), (12, 24), (23, 24), (23, 25), (25, 27),
-    (24, 26), (26, 28), (27, 29), (29, 31), (28, 30), (30, 32),
-)
-
-
-class BrowserPoseProcessor:
-    """One lazily-created MediaPipe IMAGE detector protected by a lock."""
-
-    def __init__(self, model_path: Path) -> None:
-        self.model_path = model_path
-        self.lock = threading.Lock()
-        self.detector = None
-
-    def _detector(self):
-        if self.detector is None:
-            if not self.model_path.is_file():
-                raise RuntimeError(f"Missing {self.model_path.name}. Run scripts/setup.py first.")
-            options = mp.tasks.vision.PoseLandmarkerOptions(
-                base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
-                running_mode=mp.tasks.vision.RunningMode.IMAGE,
-                num_poses=1,
-                min_pose_detection_confidence=0.55,
-                min_pose_presence_confidence=0.55,
-                min_tracking_confidence=0.55,
-            )
-            self.detector = mp.tasks.vision.PoseLandmarker.create_from_options(options)
-        return self.detector
-
-    def process(self, jpeg: bytes) -> list[dict[str, float | int]]:
-        encoded = np.frombuffer(jpeg, dtype=np.uint8)
-        frame = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
-        if frame is None or frame.size == 0:
-            raise ValueError("JPEG data could not be decoded")
-        # Pose inference is deliberately focused on the centre placement zone.
-        # This prevents a person at the edge of a multi-camera frame becoming the
-        # tracked subject, while coordinates are mapped back to full-frame space.
-        full_height, full_width = frame.shape[:2]
-        left, right = round(full_width * 0.10), round(full_width * 0.90)
-        top, bottom = round(full_height * 0.03), round(full_height * 0.98)
-        frame = frame[top:bottom, left:right]
-        crop_height, crop_width = frame.shape[:2]
-        if frame.shape[1] > 960:
-            scale = 960 / frame.shape[1]
-            frame = cv2.resize(frame, (960, round(frame.shape[0] * scale)), interpolation=cv2.INTER_AREA)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        with self.lock:
-            result = self._detector().detect(image)
-        if not result.pose_landmarks:
-            return []
-        return [
-            {
-                "index": index,
-                "x": round((left + float(point.x) * crop_width) / full_width, 6),
-                "y": round((top + float(point.y) * crop_height) / full_height, 6),
-                "z": round(float(point.z), 6),
-                "visibility": round(float(point.visibility), 5),
-            }
-            for index, point in enumerate(result.pose_landmarks[0])
-        ]
-
-    def close(self) -> None:
-        with self.lock:
-            if self.detector is not None:
-                self.detector.close()
-                self.detector = None
+ANALYSIS_LANDMARK_INDICES = (11, 12, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32)
 
 
 def unavailable(unit: str, reason: str) -> dict[str, Any]:

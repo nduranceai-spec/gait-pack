@@ -7,13 +7,13 @@
 </script>
 
 <div class="recording-list">
-  {#each sessions as session (session.file)}
+  {#each sessions as session (session.sessionId ?? session.file)}
     <article class="recording-row">
       <div class="session-icon"><Footprints size={19} /></div>
       <div class="recording-title"><strong>{session.name.replaceAll('-', ' ')}</strong><small>{sessionDate(session.date)}</small></div>
       <div class="recording-measure"><strong>{sessionDuration(session.sample_span_ms)}</strong><small>sample span</small></div>
       <StatusPill label={session.status === 'saved' ? 'Saved' : session.status === 'empty' ? 'No pose data' : 'Unreadable'} />
-      <button class="round-action" aria-label={`Open recording ${session.file}`} onclick={() => onOpen(session)}><ArrowUpRight size={19} /></button>
+      <button class="round-action" aria-label={`Open recording ${session.name}`} onclick={() => onOpen(session)}><ArrowUpRight size={19} /></button>
     </article>
   {/each}
 </div>
