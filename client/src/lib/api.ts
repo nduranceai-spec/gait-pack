@@ -1,4 +1,8 @@
+import { listCloudResults, readCloudResult, removeCloudResult } from './cloud-results';
+
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+export type PoseMode = 'browser' | 'server';
+let detectedPoseMode: Promise<PoseMode> | null = null;
 
 export interface GaitSession {
   sessionId: string;
@@ -83,6 +87,9 @@ export interface LandmarkFrame {
   keypoints: PoseKeypoint[];
 }
 
+export interface CompactFrame { t: number; timestamp: string; seq: number; keypoints: PoseKeypoint[]; }
+export interface AnalyzeViewPayload { sessionId: string; activityType: string; person: PersonDetails; durationSec: 30 | 60 | 120; view: CameraView; metadata: GaitViewMetadata; frames: CompactFrame[]; sentCount: number; }
+
 export interface TimeSeriesPoint {
   t: number;
   leftKnee?: number;
@@ -160,6 +167,30 @@ export function createSession(): Promise<GaitSession> {
   return request<GaitSession>('/api/session/create', { method: 'POST' });
 }
 
+export function getPoseMode(): Promise<PoseMode> {
+  const override = import.meta.env.VITE_POSE_MODE as PoseMode | undefined;
+  if (override === 'browser' || override === 'server') return Promise.resolve(override);
+  if (!detectedPoseMode) detectedPoseMode = request<{ hardware_mode: boolean }>('/api/hardware').then((value) => value.hardware_mode ? 'server' : 'browser').catch(() => 'browser');
+  return detectedPoseMode;
+}
+
+function compact(frame: CompactFrame): [number, string, number, number[][]] {
+  const indices = new Set([11, 12, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  return [round(frame.t), frame.timestamp, frame.seq, frame.keypoints.filter((point) => indices.has(point.index)).map((point) => [point.index, round(point.x), round(point.y), round(point.z), round(point.visibility)])];
+}
+
+export async function analyzeView(payload: AnalyzeViewPayload): Promise<GaitResult> {
+  let frames = payload.frames;
+  let body = JSON.stringify({ ...payload, frames: frames.map(compact) });
+  while (new Blob([body]).size > 3_500_000 && frames.length > 2) { frames = frames.filter((_, index) => index % 2 === 0); body = JSON.stringify({ ...payload, frames: frames.map(compact) }); }
+  if (new Blob([body]).size > 3_500_000) throw new Error('Pose data for this view is too large to upload. Shorten the test or reduce the sample rate.');
+  const response = await fetch(`${API_URL}/api/analyze`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Gait-Control': '1' }, body });
+  const value = await response.json().catch(() => null) as { error?: string; detail?: string } | GaitResult | null;
+  if (!response.ok) throw new Error((value as { error?: string; detail?: string } | null)?.error || (value as { detail?: string } | null)?.detail || `Analysis failed (${response.status}).`);
+  return value as GaitResult;
+}
+
 export function getCameras(): Promise<BackendCamera[]> {
   return request<BackendCamera[]>('/api/cameras');
 }
@@ -192,7 +223,8 @@ export function uploadFrame(sessionId: string, frame: Blob, options: { view?: Ca
   });
 }
 
-export function getGaitResult(sessionId: string): Promise<GaitResult> {
+export async function getGaitResult(sessionId: string): Promise<GaitResult> {
+  if (await getPoseMode() === 'browser') { const result = await readCloudResult(sessionId); if (!result) throw new Error('This browser does not have the saved GAIT result.'); return result; }
   return request<GaitResult>(`/api/gait/result/${encodeURIComponent(sessionId)}`);
 }
 
@@ -206,10 +238,12 @@ export function stopGait(sessionId: string, sentCounts?: Partial<Record<CameraVi
 
 export function getHealth(): Promise<{ state: string }> { return request('/api/health'); }
 
-export function deleteSession(sessionId: string): Promise<{ sessionId: string; deleted: boolean }> {
+export async function deleteSession(sessionId: string): Promise<{ sessionId: string; deleted: boolean }> {
+  if (await getPoseMode() === 'browser') { await removeCloudResult(sessionId); return { sessionId, deleted: true }; }
   return request(`/api/session/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
 }
 
-export function getSessionHistory(): Promise<SessionHistoryItem[]> {
+export async function getSessionHistory(): Promise<SessionHistoryItem[]> {
+  if (await getPoseMode() === 'browser') return listCloudResults();
   return request<SessionHistoryItem[]>('/api/sessions');
 }

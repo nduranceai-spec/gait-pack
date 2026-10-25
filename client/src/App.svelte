@@ -5,6 +5,10 @@
   import { activityType, captureViews, sessionId, testDuration } from './lib/stores/session';
   import { personProfile, validatePersonProfile } from './lib/stores/person';
   import type { PageId, Session } from './lib/types';
+  import Lenis from 'lenis';
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import SportNav from './components/SportNav.svelte';
   import AppHeader from './components/AppHeader.svelte';
   import AppSidebar from './components/AppSidebar.svelte';
   import Activity from './routes/activity/+page.svelte';
@@ -15,15 +19,19 @@
   import History from './pages/History.svelte';
   import Report from './pages/Report.svelte';
 
+  gsap.registerPlugin(ScrollTrigger);
+
   type Stage = 'workspace' | 'start' | 'camera' | 'activity' | 'result';
   type WorkspacePage = Exclude<PageId, 'studio'>;
   const pageInfo: Record<PageId, { eyebrow: string; title: string }> = {
-    dashboard: { eyebrow: 'Movement workspace', title: 'Overview' },
+    dashboard: { eyebrow: 'Sports & kinetic engine', title: 'Aura Kinetic' },
     studio: { eyebrow: 'Guided capture', title: 'New movement test' },
     report: { eyebrow: 'Session detail', title: 'Recording report' },
     history: { eyebrow: 'Saved locally', title: 'Recordings' },
     coach: { eyebrow: 'Learn and prepare', title: 'Guidance' },
   };
+
+  let lenisInstance: Lenis | null = null;
 
   let stage = $state<Stage>('workspace');
   let activePage = $state<PageId>('dashboard');
@@ -179,9 +187,31 @@
   onMount(() => {
     applyLocation();
     void refreshSessions();
+
+    try {
+      lenisInstance = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+      });
+
+      lenisInstance.on('scroll', ScrollTrigger.update);
+
+      const tickerFn = (time: number) => {
+        lenisInstance?.raf(time * 1000);
+      };
+      gsap.ticker.add(tickerFn);
+      gsap.ticker.lagSmoothing(0);
+    } catch {
+      /* Smooth scroll fallback */
+    }
+
     const handlePopState = () => applyLocation();
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      lenisInstance?.destroy();
+    };
   });
 </script>
 
@@ -221,6 +251,22 @@
     </section>
     <aside class="flow" aria-label="Test flow"><span class="active">Start</span><i></i><span>Live detection</span><i></i><span>Result</span></aside>
   </main>
+{:else if activePage === 'dashboard'}
+  <div class="sports-layout">
+    <SportNav
+      onStartScan={() => navigate('studio')}
+      onGoToWorkspace={() => navigate('history')}
+    />
+    <Dashboard
+      {sessions}
+      loading={sessionsLoading}
+      error={sessionsError}
+      onRetry={refreshSessions}
+      onStart={() => navigate('studio')}
+      onHistory={() => navigate('history')}
+      onOpen={openSession}
+    />
+  </div>
 {:else}
   <div class="app-shell experience">
     <AppSidebar active={activePage} onNavigate={navigate} />
@@ -231,17 +277,7 @@
         onHelp={() => navigate('coach')}
       />
       <section class="page-wrap">
-        {#if activePage === 'dashboard'}
-          <Dashboard
-            {sessions}
-            loading={sessionsLoading}
-            error={sessionsError}
-            onRetry={refreshSessions}
-            onStart={() => navigate('studio')}
-            onHistory={() => navigate('history')}
-            onOpen={openSession}
-          />
-        {:else if activePage === 'history'}
+        {#if activePage === 'history'}
           <History
             {sessions}
             loading={sessionsLoading}

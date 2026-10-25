@@ -5,7 +5,6 @@ import subprocess
 import sys
 import time
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SERVER_ROOT = PROJECT_ROOT / "server"
 CLIENT_ROOT = PROJECT_ROOT / "client"
@@ -28,21 +27,26 @@ def stop_processes(processes: list[subprocess.Popen]) -> None:
 
 def main() -> int:
     node = shutil.which("node")
-    if not VENV_PYTHON.is_file() or not VITE_ENTRY.is_file() or not node:
+    python_cmd = VENV_PYTHON if VENV_PYTHON.is_file() else Path(sys.executable)
+    if not node:
         print("Run the setup first: python scripts/setup.py")
         return 1
+
+    print("=" * 65)
+    print("  ⚡ GAIT // KINETIC X — HIGH-PERFORMANCE SPORTS ANIMATION ENGINE")
+    print("=" * 65)
 
     processes: list[subprocess.Popen] = []
     try:
         processes.append(subprocess.Popen(
-            [str(VENV_PYTHON), "-m", "src.web_server"],
+            [str(python_cmd), "-m", "src.web_server"],
             cwd=SERVER_ROOT,
         ))
         processes.append(subprocess.Popen(
             [node, str(VITE_ENTRY), "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
             cwd=CLIENT_ROOT,
         ))
-        print("GAIT is starting:")
+        print("GAIT Kinetic X is starting:")
         print("  App:     http://127.0.0.1:5173")
         print("  API:     http://127.0.0.1:8765")
         print("Press Ctrl+C to stop both services.")

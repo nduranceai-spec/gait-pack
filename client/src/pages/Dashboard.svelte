@@ -1,63 +1,389 @@
 <script lang="ts">
-  import { ArrowRight, ArrowUpRight, Camera, Footprints, ShieldCheck } from '@lucide/svelte';
-  import GlassCard from '../components/GlassCard.svelte';
-  import MotionFigure from '../components/MotionFigure.svelte';
+  import SportHero from '../components/SportHero.svelte';
+  import SportButtonsLab from '../components/SportButtonsLab.svelte';
+  import SportAthleteCards from '../components/SportAthleteCards.svelte';
+  import SportTimeline from '../components/SportTimeline.svelte';
+  import SportStats from '../components/SportStats.svelte';
+  import SportLeaderboard from '../components/SportLeaderboard.svelte';
+  import SportBallScene from '../components/SportBallScene.svelte';
+  import SportFooter from '../components/SportFooter.svelte';
   import SessionList from '../components/SessionList.svelte';
-  import HelpAccordion from '../components/HelpAccordion.svelte';
   import type { Session } from '../lib/types';
-  let { sessions, loading, error, onRetry, onStart, onHistory, onOpen }: {
-    sessions: Session[]; loading: boolean; error: string; onRetry: () => void;
-    onStart: () => void; onHistory: () => void; onOpen: (session: Session) => void;
+
+  let {
+    sessions = [],
+    loading = false,
+    error = '',
+    onRetry = () => {},
+    onStart = () => {},
+    onHistory = () => {},
+    onOpen = (_session: Session) => {},
+  }: {
+    sessions: Session[];
+    loading: boolean;
+    error: string;
+    onRetry: () => void;
+    onStart: () => void;
+    onHistory: () => void;
+    onOpen: (session: Session) => void;
   } = $props();
+
+  function handleButtonAction(btnName: string) {
+    if (btnName.includes('Magnetic') || btnName.includes('START') || btnName.includes('LAUNCH')) {
+      onStart();
+    }
+  }
 </script>
 
-<div class="page-stack">
-  <section class="editorial-hero">
-    <div class="editorial-copy">
-      <span class="edition-label">Your movement workspace</span>
-      <h2>Capture movement.<br />Keep every detail.</h2>
-      <p>Connect a camera, record a guided gait session, and keep your landmark data on this device.</p>
-      <div class="hero-actions">
-        <button class="primary-button" onclick={onStart}>Begin a gait test <ArrowRight size={18} /></button>
-        <button class="text-button" onclick={onHistory}>Explore recordings <ArrowUpRight size={17} /></button>
+<div class="sports-portal">
+  <!-- 1. Fullscreen Hero: "Test your stride." -->
+  <SportHero onStartTest={onStart} />
+
+  <!-- Main Content Flow -->
+  <main class="portal-content">
+    <!-- 2. 3D Kinetic Avatar Section -->
+    <section class="section-block" id="three-section">
+      <div class="section-title-wrap">
+        <span class="sec-badge">THREE.JS 0.186 // KINETIC AVATAR VIEWER</span>
+        <h2 class="sec-heading">3D ATHLETE MOTION VIEWER</h2>
+        <p class="sec-desc">
+          Drag to rotate 360° with dynamic physics damping, procedural shader maps, dual rim point lights, and kinetic orbital particles.
+        </p>
       </div>
-      <div class="hero-footnote"><ShieldCheck size={14} /> Local capture. Your pace. Your data.</div>
-    </div>
-    <GlassCard class="body-showcase" elevated>
-      <div class="showcase-top"><span>Capture model</span><span>Body + hands</span></div>
-      <div class="body-orbit orbit-outer"></div><div class="body-orbit orbit-inner"></div>
-      <div class="body-illustration"><MotionFigure /></div>
-      <div class="annotation annotation-lower"><Footprints size={16} /><div><small>Body landmarks</small><strong>22 recording points</strong></div></div>
-      <div class="showcase-caption"><span>Illustration · not live data</span><span>MediaPipe</span></div>
-    </GlassCard>
-  </section>
 
-  <div class="spec-grid" aria-label="Recording overview">
-    <div class="spec-card"><div class="spec-label">Saved recordings</div><strong>{loading || error ? '—' : sessions.filter(session => session.status === 'saved').length}<span>sessions</span></strong><p>{error ? 'Library unavailable' : 'From your local recording library'}</p></div>
-    <div class="spec-card"><div class="spec-label">Capture window</div><strong>60<span>seconds</span></strong><p>Save earlier whenever you need</p></div>
-    <div class="spec-card"><div class="spec-label">Private storage</div><strong>Local<span>CSV</span></strong><p>Coordinates only. No saved video.</p></div>
-  </div>
+      <div class="arena-frame">
+        <div class="arena-hud-top">
+          <div class="hud-item">
+            <span class="hud-dot"></span>
+            <span>THREE.JS WEBGL 2.0 // HIGH PERFORMANCE</span>
+          </div>
+          <div class="hud-item">
+            <span>60 FPS SMOOTH SCROLL & DAMPING</span>
+          </div>
+        </div>
+        <div class="arena-inner-canvas">
+          <SportBallScene />
+        </div>
+        <div class="arena-hud-bottom">
+          <span>INTERACTIVE 3D MODEL · DRAG WITH MOUSE OR TOUCH</span>
+          <button class="arena-scan-btn" onclick={onStart}>
+            <span>CONTINUE TO CAMERAS →</span>
+          </button>
+        </div>
+      </div>
+    </section>
 
-  <section class="journey-section">
-    <div class="section-heading"><div><p class="eyebrow">Simple by design</p><h3>From first step to recorded movement.</h3></div><span class="section-index">01 — 03</span></div>
-    <div class="journey-grid">
-      <article><span class="step-number">01</span><Camera size={22} /><h4>Find your frame</h4><p>Connect your camera and check your whole body is visible.</p></article>
-      <article><span class="step-number">02</span><Footprints size={22} /><h4>Move naturally</h4><p>Start a 60-second capture at a comfortable, unhurried pace.</p></article>
-      <article><span class="step-number">03</span><ArrowUpRight size={22} /><h4>Keep the detail</h4><p>Review the saved session and download your landmark data.</p></article>
-    </div>
-  </section>
+    <!-- 3. 7 Tactile Gait Test Controls -->
+    <section class="section-block" id="buttons-section">
+      <SportButtonsLab onTrigger={handleButtonAction} />
+    </section>
 
-  <div class="dashboard-bottom">
-    <GlassCard class="history-preview">
-      <div class="section-heading"><div><p class="eyebrow">Your movement library</p><h3>Recent recordings</h3></div><button class="text-button" onclick={onHistory}>View all <ArrowUpRight size={16} /></button></div>
-      {#if loading}<p class="quiet-message" role="status">Loading your recordings…</p>
-      {:else if error}<div class="inline-notice" role="status"><p>{error}</p><button class="text-button" onclick={onRetry}>Try again <ArrowRight size={15} /></button></div>
-      {:else if sessions.length}<SessionList sessions={sessions.slice(0, 3)} {onOpen} />
-      {:else}<div class="empty-library"><Footprints size={28} /><h4>Your first step starts here.</h4><p>Saved recordings will appear after your first test.</p><button class="text-button" onclick={onStart}>Set up camera <ArrowRight size={16} /></button></div>{/if}
-    </GlassCard>
-    <GlassCard class="assurance-card">
-      <ShieldCheck size={26} strokeWidth={1.3} /><p class="eyebrow">Thoughtful by design</p><h3>Clarity, without<br />the guesswork.</h3><p>Recording is live. Measurements appear only when an analysis method is available.</p>
-      <HelpAccordion items={[{ question: 'What is saved?', answer: 'The recorder saves body landmark coordinates and timestamps to a local CSV. It does not save camera video. Face landmarks are excluded by the default recording profile.' }, { question: 'Is this a medical report?', answer: 'No. This workspace captures movement data. Joint angles, gait symmetry, and clinical interpretations are not currently calculated.' }]} />
-    </GlassCard>
-  </div>
+    <!-- 4. Athlete Gait Benchmark Cards (3D Tilt + Flip) -->
+    <section class="section-block" id="athletes-section">
+      <SportAthleteCards />
+    </section>
+
+    <!-- 5. Kinematic Stride Phase Timeline -->
+    <section class="section-block" id="timeline-section">
+      <SportTimeline />
+    </section>
+
+    <!-- 6. Biomechanical Performance Stats & Rings -->
+    <section class="section-block" id="stats-section">
+      <SportStats />
+    </section>
+
+    <!-- 7. Gait Test Protocols & Benchmarks -->
+    <section class="section-block" id="protocols-section">
+      <SportLeaderboard onSelectProtocol={onStart} />
+    </section>
+
+    <!-- 8. Local Saved Recordings Shelf -->
+    <section class="section-block library-shelf">
+      <div class="shelf-header">
+        <div>
+          <span class="sec-badge">LOCAL SESSIONS</span>
+          <h3 class="shelf-title">RECENT GAIT RECORDINGS</h3>
+        </div>
+        <div class="shelf-actions">
+          <button class="shelf-btn-sec" onclick={onHistory}>VIEW ALL ({sessions.length})</button>
+          <button class="shelf-btn-pri" onclick={onStart}>NEW GAIT TEST +</button>
+        </div>
+      </div>
+
+      {#if loading}
+        <div class="shelf-status"><p>Loading local session recordings…</p></div>
+      {:else if error}
+        <div class="shelf-status error">
+          <p>{error}</p>
+          <button onclick={onRetry}>Retry</button>
+        </div>
+      {:else if sessions.length > 0}
+        <div class="shelf-list-wrap">
+          <SessionList sessions={sessions.slice(0, 4)} {onOpen} />
+        </div>
+      {:else}
+        <div class="shelf-empty">
+          <span class="empty-icon">⚡</span>
+          <h4>NO RECORDINGS YET</h4>
+          <p>Record your first 60-second gait session with local 33-point MediaPipe AI detection.</p>
+          <button class="start-first-btn" onclick={onStart}>START A GAIT TEST →</button>
+        </div>
+      {/if}
+    </section>
+  </main>
+
+  <!-- 9. Clean Sports Footer -->
+  <SportFooter onStartTest={onStart} />
 </div>
+
+<style>
+  .sports-portal {
+    background: #f8f8f6;
+    color: #07171c;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .portal-content {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 clamp(18px, 4vw, 42px);
+  }
+
+  .section-block {
+    padding: clamp(36px, 5vw, 64px) 0;
+    border-bottom: 1px solid #e5ecee;
+  }
+
+  .section-title-wrap {
+    margin-bottom: 28px;
+  }
+
+  .sec-badge {
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: #0877aa;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .sec-heading {
+    margin: 0 0 10px;
+    font-family: 'Manrope', 'Anton', sans-serif;
+    font-size: clamp(28px, 4.5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #07171c;
+    line-height: 1;
+  }
+
+  .sec-desc {
+    margin: 0;
+    color: #607075;
+    font-size: 15px;
+    max-width: 600px;
+    line-height: 1.5;
+  }
+
+  /* 3D Arena Frame */
+  .arena-frame {
+    background: #ffffff;
+    border: 1px solid #dce4e6;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 12px 36px rgba(7, 23, 28, 0.06);
+  }
+
+  .arena-hud-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    background: #f8f8f6;
+    border-bottom: 1px solid #e8eff0;
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: #607075;
+  }
+
+  .hud-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hud-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #00c8f5;
+    box-shadow: 0 0 6px #00c8f5;
+  }
+
+  .arena-inner-canvas {
+    height: clamp(400px, 48vh, 520px);
+    position: relative;
+  }
+
+  .arena-hud-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 14px 20px;
+    background: #f8f8f6;
+    border-top: 1px solid #e8eff0;
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #607075;
+  }
+
+  .arena-scan-btn {
+    background: #07171c;
+    color: #ffffff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+
+  .arena-scan-btn:hover {
+    background: #14282f;
+    transform: translateY(-2px);
+  }
+
+  /* Library Shelf */
+  .library-shelf {
+    border-bottom: none;
+  }
+
+  .shelf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .shelf-title {
+    margin: 0;
+    font-family: 'Manrope', 'Anton', sans-serif;
+    font-size: clamp(24px, 3.5vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #07171c;
+    line-height: 1;
+  }
+
+  .shelf-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .shelf-btn-sec {
+    background: transparent;
+    border: 1px solid #adbabb;
+    color: #07171c;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-family: 'Oswald', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .shelf-btn-sec:hover {
+    border-color: #07171c;
+    background: #ffffff;
+  }
+
+  .shelf-btn-pri {
+    background: #07171c;
+    color: #ffffff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .shelf-btn-pri:hover {
+    background: #152d35;
+    transform: translateY(-2px);
+  }
+
+  .shelf-status {
+    padding: 40px;
+    text-align: center;
+    color: #607075;
+    font-size: 14px;
+  }
+
+  .shelf-empty {
+    text-align: center;
+    padding: 50px 20px;
+    background: #ffffff;
+    border: 1px dashed #cdd8db;
+    border-radius: 8px;
+  }
+
+  .empty-icon {
+    font-size: 32px;
+    color: #00c8f5;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .shelf-empty h4 {
+    margin: 0 0 8px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: #07171c;
+  }
+
+  .shelf-empty p {
+    margin: 0 0 20px;
+    color: #607075;
+    font-size: 14px;
+  }
+
+  .start-first-btn {
+    background: #07171c;
+    color: #ffffff;
+    border: none;
+    padding: 12px 26px;
+    border-radius: 4px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(7, 23, 28, 0.15);
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .start-first-btn:hover {
+    background: #152d35;
+    transform: translateY(-2px);
+  }
+</style>

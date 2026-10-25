@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gait-vercel-api"
+version = "0.1.0"
+description = "Stateless GAIT analysis API"
+requires-python = ">=3.12"
+dependencies = ["fastapi==0.115.12", "numpy==1.26.4"]
