@@ -22,14 +22,14 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
       - name: Install Python dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r server/requirements.txt
       - name: Install frontend dependencies
         run: npm ci --prefix client
       - name: Test camera discovery
         working-directory: server
         run: python -m unittest discover -s tests -v
       - name: Check Python syntax
-        run: python -m compileall -q scripts server/src server/tests
+        run: python -m compileall -q server/scripts server/src server/tests
       - name: Check frontend
         run: npm --prefix client run check
       - name: Build frontend

@@ -5,153 +5,23 @@
 [![Backend](https://img.shields.io/badge/Backend-FastAPI_Python_3.12-009688?logo=fastapi)](https://fastapi.tiangolo.com)
 [![MediaPipe](https://img.shields.io/badge/Pose-MediaPipe_Tasks_WASM-4285F4?logo=google)](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)
 
-GAIT is a high-performance biomechanics motion capture platform. It combines a state-of-the-art **Svelte 5 / Vite** sports interface (3D Three.js runner statue, GSAP animations, Lenis inertial smooth scroll) with a **FastAPI serverless backend** and **browser-side MediaPipe WebAssembly** pose tracking.
+GAIT is a high-performance biomechanics motion capture platform. It combines a state-of-the-art **Svelte 5 / Vite** sports interface (3D Three.js runner statue, GSAP animations, Lenis inertial smooth scroll) with a **FastAPI backend** and **browser-side MediaPipe WebAssembly** pose tracking.
 
-The project is structured to deploy on **Vercel as a single unified project** (frontend + serverless API on the same domain) while retaining a full local desktop hardware mode with OpenCV.
-
----
-
-## 🚀 Run Commands
-
-### 1. Run Everything Locally (One Command)
-
-From the project root:
-
-```bash
-# Starts Python backend (port 8765) and Vite frontend (port 5173) simultaneously
-npm run dev
-```
-
-> **Alternative (Full Desktop Hardware + USB Cameras + OpenCV):**
-> ```bash
-> python run.py
-> ```
-
----
-
-### 2. Frontend Only Commands
-
-All frontend files are in the `client/` folder:
-
-```bash
-# Navigate to the frontend directory
-cd client
-
-# 1. Install dependencies
-npm install
-
-# 2. Start Vite development server (http://127.0.0.1:5173)
-npm run dev
-
-# 3. Type check & Svelte component validation
-npm run check
-
-# 4. Build optimized production bundle (outputs to client/dist)
-npm run build
-
-# 5. Preview production build locally (http://127.0.0.1:4173)
-npm run preview
-```
-
----
-
-### 3. Backend Only Commands
-
-The project offers two backend workflows:
-
-#### A. Cloud / Serverless Mode (FastAPI — Same as Vercel)
-Stateless ASGI backend for browser-side pose landmark analysis:
-
-```bash
-# From repository root using the virtual environment:
-.venv/bin/python -m uvicorn api.index:app --host 127.0.0.1 --port 8765 --reload
-
-# Or on Windows PowerShell:
-.\.venv\Scripts\python.exe -m uvicorn api.index:app --host 127.0.0.1 --port 8765 --reload
-
-# Or via runner script:
-python scripts/dev_backend.py
-```
-
-#### B. Local Hardware Mode (OpenCV + MediaPipe Desktop Server)
-Direct access to attached USB cameras and native MediaPipe models:
-
-```bash
-# From server/ directory:
-cd server
-python -m src.web_server
-
-# Or inspect connected physical USB/V4L2 cameras:
-python scripts/run_pose.py --list-cameras
-python scripts/run_pose.py --camera usb
-```
-
----
-
-## ☁️ Deploying on Vercel (Single Project)
-
-This repository deploys as **one single project** on Vercel:
-
-1. **Push your code to GitHub**:
-   ```bash
-   git push origin main
-   ```
-2. **Import into Vercel**:
-   - Go to [vercel.com/new](https://vercel.com/new) and select this repository.
-   - **Root Directory**: `./` (keep at repository root).
-   - **Framework Preset**: `Other` (or Vite).
-   - Build settings and rewrites are managed automatically by `vercel.json`.
-3. **Environment Variables** (Project Settings > Environment Variables):
-   - `VITE_API_URL`: *(Leave empty — uses relative `/api/...` on the same domain, eliminating CORS issues)*.
-   - `VITE_POSE_MODE`: `browser`
-   - `MAX_BODY_BYTES`: `4000000`
-4. **Deploy**:
-   - The Svelte frontend builds into `client/dist` and is served at `/`.
-   - The FastAPI backend runs under `/api/*` via `api/index.py`.
-   - Client-side routes (`/gait-test`, `/report`) fallback to `/index.html` without 404s.
-
----
-
-## 🏗️ Architecture & Dual Mode
-
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        USER BROWSER / CLIENT                           │
-│  Svelte 5 · Three.js 3D Sphere · GSAP Motion · Lenis Inertial Scroll   │
-│  WebRTC getUserMedia()  ──►  @mediapipe/tasks-vision (WASM/WebGL)       │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                  POST /api/analyze │ (Compact JSON Landmark Vectors)
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      VERCEL SERVERLESS BACKEND                         │
-│                    FastAPI (api/index.py - Python 3.12)                │
-│                                                                        │
-│   • Mathematical Gait & Biomechanics Engine (gait_analysis.py)        │
-│   • Cadence, Step Symmetry, Hip/Knee Range of Motion, Trunk Lean       │
-│   • Memory-safe payload validation (< 4 MB)                            │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-| Feature | Cloud / Vercel Mode | Local Desktop Hardware Mode |
-| :--- | :--- | :--- |
-| **Hosting** | Vercel Serverless Functions (`api/index.py`) | Local Python `ThreadingHTTPServer` (`server/src/web_server.py`) |
-| **Camera Capture** | Browser WebRTC (`navigator.mediaDevices`) | Native OpenCV (`cv2.VideoCapture` / `/dev/video*`) |
-| **Pose Detection** | Client-side `@mediapipe/tasks-vision` (WASM) | Local MediaPipe Python desktop runtime |
-| **Storage** | Client-side IndexedDB (`cloud-results.ts`) | Local CSV file recording (`server/data/sessions/`) |
-| **Domain / Origin** | Unified domain (`/` and `/api/*` on same origin) | Vite proxy `5173` ──► Backend `8765` |
+The project is cleanly divided into two self-contained directories: **`client/`** (frontend) and **`server/`** (backend & biomechanics engine).
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-├── api/
-│   └── index.py                           FastAPI serverless handler (exposes app)
-├── client/
+├── client/                                Frontend Application (Svelte 5 + Vite)
+│   ├── .env.example                       Client environment variable definitions
+│   ├── index.html                         HTML root template
+│   ├── package.json                       Frontend scripts, UI & animation dependencies
+│   ├── public/                            Static assets & MediaPipe WASM runtime
 │   ├── src/
 │   │   ├── App.svelte                     Root coordinator & page switcher
-│   │   ├── sport.css                      Tailwind v4 tokens & athletic theme styles
+│   │   ├── sport.css                      Tailwind v4 tokens & athletic styling
 │   │   ├── components/                    Athlete cards, 3D ball, timeline, leaderboard
 │   │   ├── lib/
 │   │   │   ├── api.ts                     Unified relative API client
@@ -161,30 +31,130 @@ This repository deploys as **one single project** on Vercel:
 │   │       ├── gait-test/+page.svelte     Webcam discovery, preview & countdown
 │   │       ├── activity/+page.svelte      Live test recording & skeleton mesh scan
 │   │       └── result/[sessionId]/+page.svelte Biomechanical metrics & chart report
-│   ├── package.json                       Frontend scripts and dependencies
+│   ├── tsconfig.json                      TypeScript configuration
 │   └── vite.config.ts                     Vite build config with base '/' and API proxy
-├── server/
-│   └── src/
-│       ├── gait_analysis.py               Clinical biomechanics computation engine
-│       ├── web_server.py                  Local hardware API & camera service
-│       └── pose_camera.py                 Desktop OpenCV capture loop
-├── scripts/
-│   ├── dev_backend.py                     FastAPI launcher for npm run dev
-│   ├── setup.py                           Cross-platform Python + frontend installer
-│   └── run_web.py                         Unified launcher for hardware mode
-├── .env.example                           Documented environment variables
-├── .vercelignore                          Bundle size optimizer (excludes heavy models/venv)
-├── package.json                           Root scripts: dev, build, start
-├── requirements.txt                       Pinned Python dependencies (FastAPI, NumPy)
-├── run.py                                 One-click local desktop launcher
-└── vercel.json                            Single Vercel deployment & rewrite config
+│
+├── server/                                Backend Application (FastAPI + Biomechanics Engine)
+│   ├── .env.example                       Server environment variable definitions
+│   ├── .python-version                    Target Python runtime (3.12)
+│   ├── pyproject.toml                     Package configuration & build metadata
+│   ├── requirements.txt                   FastAPI, MediaPipe, OpenCV headless, NumPy
+│   ├── run.py                             Single runnable script for both backend & frontend
+│   ├── index.py                           FastAPI application entrypoint
+│   ├── api/
+│   │   └── index.py                       Stateless FastAPI serverless handler
+│   ├── scripts/
+│   │   ├── dev_backend.py                 FastAPI dev server runner with hot reload
+│   │   ├── run_web.py                     Unified launcher for hardware mode
+│   │   ├── run_pose.py                    CLI pose landmarker on camera stream
+│   │   └── setup.py                       Dependency installer & model downloader
+│   ├── src/
+│   │   ├── gait_analysis.py               Clinical biomechanics computation engine
+│   │   ├── web_server.py                  Local hardware API & camera service
+│   │   ├── cameras.py                     Hardware USB / V4L2 camera discovery
+│   │   ├── hardware_pose.py               MediaPipe pose extraction pipeline
+│   │   ├── pose_camera.py                 Desktop OpenCV capture loop
+│   │   ├── recorder.py                    Session frame & keypoint recorder
+│   │   └── sessions.py                    Session persistence manager
+│   ├── models/                            Downloaded MediaPipe .task models
+│   └── tests/                             Backend unit & camera discovery tests
+│
+├── vercel.json                            Vercel monorepo configuration (routes client & server)
+├── .vercelignore                          Deployment bundle exclusions
+├── .gitignore                             Standard Git ignore rules
+└── README.md                              Platform documentation
 ```
 
 ---
 
-## 📡 API Reference
+## 🚀 Quick Start
 
-All browser API requests include the `X-Gait-Control: 1` header.
+### 1. Unified Launcher (Frontend + Backend)
+
+Run the full platform with a single command from the project root:
+
+```bash
+# Starts Python backend (port 8765) and Vite frontend (port 5173) simultaneously:
+python server/run.py
+```
+
+---
+
+### 2. Frontend Development (`client/`)
+
+All frontend code and dependencies reside in `client/`:
+
+```bash
+cd client
+
+# 1. Install frontend dependencies
+npm install
+
+# 2. Start Vite development server (http://127.0.0.1:5173)
+npm run dev
+
+# 3. Type check & Svelte validation
+npm run check
+
+# 4. Build optimized production bundle
+npm run build
+
+# 5. Preview production build locally
+npm run preview
+```
+
+---
+
+### 3. Backend Development (`server/`)
+
+All backend code, dependencies, and APIs reside in `server/`:
+
+```bash
+cd server
+
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Run FastAPI development server with hot reload (http://127.0.0.1:8765)
+python -m uvicorn api.index:app --host 127.0.0.1 --port 8765 --reload
+
+# Or use the convenience runner:
+python scripts/dev_backend.py
+```
+
+#### Optional: Local Hardware Mode (OpenCV + USB Cameras)
+For testing physical USB / V4L2 cameras directly with OpenCV:
+
+```bash
+cd server
+python -m src.web_server
+
+# Camera inspection tools:
+python scripts/run_pose.py --list-cameras
+python scripts/run_pose.py --camera usb
+```
+
+---
+
+## ☁️ Deploying on Vercel
+
+This repository deploys as **one single project** on Vercel using `vercel.json` services configuration:
+
+1. **Import into Vercel**:
+   - Go to [vercel.com/new](https://vercel.com/new) and select this repository.
+   - **Root Directory**: `./` (keep at repository root).
+   - Vercel automatically maps `client/` to the Vite frontend and `server/` to the FastAPI backend via `vercel.json`.
+2. **Environment Variables** (Project Settings > Environment Variables):
+   - `VITE_API_URL`: *(Leave empty — uses relative `/api/...` on the same domain, eliminating CORS issues)*.
+   - `VITE_POSE_MODE`: `browser`
+   - `MAX_BODY_BYTES`: `4000000`
+3. **Deploy**:
+   - Frontend is compiled and served at `/`.
+   - FastAPI backend handles all `/api/*` endpoints.
+
+---
+
+## 📡 API Reference
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -212,17 +182,16 @@ All browser API requests include the `X-Gait-Control: 1` header.
 Run these commands to verify complete repository health:
 
 ```bash
-# 1. Frontend validation & build
-cd client
-npm run check
-npm run build
-cd ..
+# 1. Frontend check & build
+npm --prefix client run check
+npm --prefix client run build
 
-# 2. Serverless API verification
-.venv/bin/python -c "from api.index import app; print('App is ready:', app.title)"
+# 2. Server API & unit tests
+python -m unittest discover -s server/tests -v
+python -m compileall -q server/scripts server/src server/api
 
-# 3. Run both locally
-npm run dev
+# 3. Verify server entrypoint
+python -c "import sys; sys.path.insert(0, 'server'); from api.index import app; print('App ready:', app.title)"
 ```
 
 ---

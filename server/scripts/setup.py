@@ -6,9 +6,10 @@ import subprocess
 import sys
 from urllib.request import urlopen
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = PROJECT_ROOT / "server" / "models"
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = SERVER_ROOT.parent
+MODEL_DIR = SERVER_ROOT / "models"
+CLIENT_ROOT = PROJECT_ROOT / "client"
 MODEL_URLS = {
     "pose_landmarker_lite.task": (
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
@@ -38,7 +39,7 @@ def install_frontend() -> None:
     match = re.match(r"v?(\d+)\.(\d+)", version.strip())
     if not match or (int(match.group(1)), int(match.group(2))) < (22, 12):
         raise SystemExit("Vite requires Node.js 22.12 or newer. Install Node.js 22 LTS, then rerun setup.")
-    command = [npm, "install", "--prefix", str(PROJECT_ROOT / "client")]
+    command = [npm, "install", "--prefix", str(CLIENT_ROOT)]
     if os.name == "nt":
         subprocess.run(subprocess.list2cmdline(command), cwd=PROJECT_ROOT, check=True, shell=True)
     else:
@@ -73,10 +74,10 @@ def main() -> int:
         run([sys.executable, "-m", "venv", str(environment)])
     python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     run([str(python), "-m", "pip", "install", "--upgrade", "pip"])
-    run([str(python), "-m", "pip", "install", "-r", str(PROJECT_ROOT / "requirements.txt")])
+    run([str(python), "-m", "pip", "install", "-r", str(SERVER_ROOT / "requirements.txt")])
     install_frontend()
     download_models()
-    print("Setup complete. Start GAIT with: python scripts/run_web.py")
+    print("Setup complete. Start GAIT with: python server/run.py")
     return 0
 
 
