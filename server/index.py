@@ -1,17 +1,20 @@
+"""GAIT Server — FastAPI application entrypoint."""
 import os
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SERVER_ROOT = Path(__file__).resolve().parent
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
 
-os.environ.setdefault("GAIT_HARDWARE_MODE", "0")
-os.environ.setdefault("GAIT_DATA_DIR", "/tmp/gait-data")
+from api.index import app
 
-from src.web_server import Handler
+handler = app
 
-handler = Handler
-app = Handler
+__all__ = ["app", "handler"]
 
-__all__ = ["handler", "Handler", "app"]
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", "8765"))
+    host = os.environ.get("HOST", "127.0.0.1")
+    uvicorn.run("api.index:app", host=host, port=port, reload=True)

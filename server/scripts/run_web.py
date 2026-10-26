@@ -5,10 +5,12 @@ import subprocess
 import sys
 import time
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SERVER_ROOT = PROJECT_ROOT / "server"
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = SERVER_ROOT.parent
 CLIENT_ROOT = PROJECT_ROOT / "client"
 VENV_PYTHON = PROJECT_ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+if not VENV_PYTHON.is_file():
+    VENV_PYTHON = SERVER_ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 VITE_ENTRY = CLIENT_ROOT / "node_modules" / "vite" / "bin" / "vite.js"
 
 
@@ -29,7 +31,7 @@ def main() -> int:
     node = shutil.which("node")
     python_cmd = VENV_PYTHON if VENV_PYTHON.is_file() else Path(sys.executable)
     if not node:
-        print("Run the setup first: python scripts/setup.py")
+        print("Run setup first: python server/scripts/setup.py")
         return 1
 
     print("=" * 65)

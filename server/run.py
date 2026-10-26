@@ -12,10 +12,12 @@ import subprocess
 import sys
 import time
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-SERVER_ROOT = PROJECT_ROOT / "server"
+SERVER_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = SERVER_ROOT.parent
 CLIENT_ROOT = PROJECT_ROOT / "client"
 VENV_PYTHON = PROJECT_ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+if not VENV_PYTHON.is_file():
+    VENV_PYTHON = SERVER_ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 VITE_ENTRY = CLIENT_ROOT / "node_modules" / "vite" / "bin" / "vite.js"
 
 

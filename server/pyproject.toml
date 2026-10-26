@@ -3,16 +3,18 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gait-perfect"
+name = "gait-server"
 version = "0.1.0"
-description = "Gait analysis backend — browser-based pose capture and metric extraction"
+description = "GAIT Analysis Backend — FastAPI & MediaPipe biomechanics engine"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn==0.34.0",
+    "numpy>=1.26,<2.0",
     "mediapipe==0.10.35",
     "opencv-contrib-python-headless==4.11.0.86",
-    "numpy>=1.26",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "api*"]

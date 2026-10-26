@@ -6,7 +6,7 @@
       "framework": "vite"
     },
     "backend": {
-      "root": ".",
+      "root": "server",
       "framework": "fastapi",
       "entrypoint": "api.index:app"
     }
